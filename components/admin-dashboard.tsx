@@ -17,248 +17,46 @@ import {
   Award,
   Filter,
   MapPin,
+  AlertTriangle,
 } from "lucide-react"
 import { checklistData, getMaturityLevel } from "@/lib/checklist-data"
 import Link from "next/link"
 import { useSupabaseData } from "@/hooks/use-supabase-data"
 
-interface UserData {
-  userId: string
-  userData: {
-    name: string
-    email: string
-    whatsapp: string
-    location?: {
-      latitude: number
-      longitude: number
-      city?: string
-      state?: string
-      country?: string
-    }
-  }
-  answers: Record<string, boolean> | null
-  completedAt: string | null
-  totalScore: number
-}
-
-interface AdminStats {
-  totalUsers: number
-  completedDiagnostics: number
-  averageScore: number
-  topCategories: Array<{ category: string; averageScore: number }>
-}
-
-interface AdminDashboardProps {
-  onLogout: () => void
-}
-
-// Componente para dropdown de categoria com respostas detalhadas
-function CategoryDropdown({
-  category,
-  answers,
-  stats,
-}: {
-  category: any
-  answers: Array<{ question: string; answer: boolean | undefined; tip?: string }>
-  stats: { answeredYes: number; answeredNo: number; notAnswered: number }
-}) {
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  const getAnswerIcon = (answer: boolean | undefined) => {
-    if (answer === true) return { icon: "✅", color: "#10b981", text: "Sim" }
-    if (answer === false) return { icon: "❌", color: "#ef4444", text: "Não" }
-    return { icon: "⚪", color: "#6b7280", text: "Não respondido" }
-  }
-
+// Componente de erro para exibir mensagens de erro
+function ErrorDisplay({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--border-subtle)",
-        borderRadius: "0.5rem",
-        overflow: "hidden",
-      }}
-    >
-      {/* Header do dropdown */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          width: "100%",
-          padding: "1rem",
-          background: isExpanded ? "var(--sage)" : "white",
-          color: isExpanded ? "white" : "var(--dark)",
-          border: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          transition: "all 0.2s ease",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flex: 1 }}>
-          <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>{category.title}</span>
-
-          {/* Barra de progresso */}
-          <div style={{ flex: 1, maxWidth: "200px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <div
-              style={{
-                flex: 1,
-                height: "6px",
-                background: isExpanded ? "rgba(255,255,255,0.2)" : "#f1f5f9",
-                borderRadius: "3px",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: `${(stats.answeredYes / (stats.answeredYes + stats.answeredNo + stats.notAnswered)) * 100 || 0}%`,
-                  height: "100%",
-                  background: isExpanded ? "white" : "#10b981",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-            <span
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                minWidth: "35px",
-                color: isExpanded ? "rgba(255,255,255,0.9)" : "var(--sage)",
-              }}
-            >
-              {Math.round((stats.answeredYes / (stats.answeredYes + stats.answeredNo + stats.notAnswered)) * 100 || 0)}%
-            </span>
-          </div>
-
-          <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.75rem" }}>
-            <span
-              style={{
-                background: isExpanded ? "rgba(255,255,255,0.2)" : "#d1fae5",
-                color: isExpanded ? "white" : "#065f46",
-                padding: "0.25rem 0.5rem",
-                borderRadius: "0.25rem",
-              }}
-            >
-              ✅ {stats.answeredYes}
-            </span>
-            <span
-              style={{
-                background: isExpanded ? "rgba(255,255,255,0.2)" : "#fef3c7",
-                color: isExpanded ? "white" : "#92400e",
-                padding: "0.25rem 0.5rem",
-                borderRadius: "0.25rem",
-              }}
-            >
-              ❌ {stats.answeredNo}
-            </span>
-            {stats.notAnswered > 0 && (
-              <span
-                style={{
-                  background: isExpanded ? "rgba(255,255,255,0.2)" : "#f1f5f9",
-                  color: isExpanded ? "white" : "#475569",
-                  padding: "0.25rem 0.5rem",
-                  borderRadius: "0.25rem",
-                }}
-              >
-                ⚪ {stats.notAnswered}
-              </span>
-            )}
-          </div>
-        </div>
-        <span
-          style={{
-            fontSize: "1.2rem",
-            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s ease",
-            marginLeft: "1rem",
-          }}
-        >
-          ▼
-        </span>
-      </button>
-
-      {/* Conteúdo expandível */}
-      {isExpanded && (
-        <div style={{ background: "white", borderTop: "1px solid var(--border-subtle)" }}>
-          {answers.map((item, index) => {
-            const answerInfo = getAnswerIcon(item.answer)
-            return (
-              <div
-                key={index}
-                style={{
-                  padding: "1rem",
-                  borderBottom: index < answers.length - 1 ? "1px solid #f1f5f9" : "none",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "1rem",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "1.2rem",
-                    marginTop: "0.125rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  {answerInfo.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p
-                    style={{
-                      margin: "0 0 0.5rem 0",
-                      fontWeight: "500",
-                      color: "var(--dark)",
-                      lineHeight: "1.4",
-                    }}
-                  >
-                    {item.question}
-                  </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: "600",
-                        color: answerInfo.color,
-                        background: `${answerInfo.color}15`,
-                        padding: "0.25rem 0.5rem",
-                        borderRadius: "0.25rem",
-                      }}
-                    >
-                      {answerInfo.text}
-                    </span>
-                    {item.tip && (
-                      <span
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--warm-gray)",
-                          fontStyle: "italic",
-                          background: "#f8fafc",
-                          padding: "0.25rem 0.5rem",
-                          borderRadius: "0.25rem",
-                          border: "1px solid #e2e8f0",
-                        }}
-                      >
-                        💡 {item.tip}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+    <div className="card" style={{ textAlign: "center", padding: "2rem" }}>
+      <AlertTriangle size={48} color="#ef4444" style={{ margin: "0 auto 1rem" }} />
+      <h2 style={{ fontSize: "1.5rem", fontWeight: "600", color: "#ef4444", marginBottom: "1rem" }}>
+        Erro ao carregar dados
+      </h2>
+      <p style={{ color: "var(--warm-gray)", marginBottom: "1.5rem" }}>{message}</p>
+      <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+        <button onClick={onRetry} className="btn btn-primary">
+          Tentar novamente
+        </button>
+        <Link href="/admin/debug">
+          <button className="btn btn-secondary">Página de Debug</button>
+        </Link>
+      </div>
     </div>
   )
 }
 
-export function AdminDashboard({ onLogout }: AdminDashboardProps) {
+// Resto do componente AdminDashboard com verificações adicionais
+export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const { users, isLoading, error, stats, deleteUser, reload } = useSupabaseData()
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "completed" | "incomplete">("all")
   const [selectedUser, setSelectedUser] = useState<any | null>(null)
   const [showUserDetails, setShowUserDetails] = useState(false)
+  const [isDebugMode, setIsDebugMode] = useState(false)
 
-  // Remove o useEffect e loadData - agora é gerenciado pelo hook
+  // Função para verificar se o objeto é válido
+  const isValidObject = (obj: any): boolean => {
+    return obj !== null && typeof obj === "object"
+  }
 
   const handleDeleteUser = async (userId: string) => {
     if (confirm("Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.")) {
@@ -274,7 +72,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   const handleViewUser = async (userId: string) => {
     try {
-      const user = users.find((u) => u.userId === userId)
+      const user = users.find((u) => u.id === userId)
       if (user) {
         setSelectedUser(user)
         setShowUserDetails(true)
@@ -285,49 +83,66 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   }
 
   const exportToCSV = () => {
-    const csvContent = [
-      ["Nome", "Email", "WhatsApp", "Cidade", "Estado", "Score", "Status", "Data de Conclusão"],
-      ...filteredUsers.map((user) => [
-        user.userData.name,
-        user.userData.email,
-        user.userData.whatsapp,
-        user.userData.location?.city || "N/A",
-        user.userData.location?.state || "N/A",
-        user.totalScore.toString(),
-        user.answers ? "Completo" : "Incompleto",
-        user.completedAt ? new Date(user.completedAt).toLocaleDateString("pt-BR") : "N/A",
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
+    try {
+      const csvContent = [
+        ["Nome", "Email", "WhatsApp", "Cidade", "Estado", "Score", "Status", "Data de Conclusão"],
+        ...filteredUsers.map((user) => [
+          user.name || "N/A",
+          user.email || "N/A",
+          user.whatsapp || "N/A",
+          isValidObject(user.location) ? user.location.city || "N/A" : "N/A",
+          isValidObject(user.location) ? user.location.state || "N/A" : "N/A",
+          user.totalScore.toString(),
+          user.answers ? "Completo" : "Incompleto",
+          user.completedAt ? new Date(user.completedAt).toLocaleDateString("pt-BR") : "N/A",
+        ]),
+      ]
+        .map((row) => row.join(","))
+        .join("\n")
 
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `diagnosticos-gmb-${new Date().toISOString().split("T")[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+      const blob = new Blob([csvContent], { type: "text/csv" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `diagnosticos-gmb-${new Date().toISOString().split("T")[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Erro ao exportar CSV:", error)
+      alert("Erro ao exportar dados. Verifique o console para mais detalhes.")
+    }
   }
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.userData.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.userData.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.userData.location?.city && user.userData.location.city.toLowerCase().includes(searchTerm.toLowerCase()))
+  // Filtrar usuários com verificações de segurança
+  const filteredUsers = Array.isArray(users)
+    ? users.filter((user) => {
+        if (!isValidObject(user)) return false
 
-    const matchesFilter =
-      filterStatus === "all" ||
-      (filterStatus === "completed" && user.answers !== null) ||
-      (filterStatus === "incomplete" && user.answers === null)
+        const matchesSearch =
+          (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (isValidObject(user.location) &&
+            user.location.city &&
+            user.location.city.toLowerCase().includes(searchTerm.toLowerCase()))
 
-    return matchesSearch && matchesFilter
-  })
+        const matchesFilter =
+          filterStatus === "all" ||
+          (filterStatus === "completed" && user.answers !== null) ||
+          (filterStatus === "incomplete" && user.answers === null)
+
+        return matchesSearch && matchesFilter
+      })
+    : []
 
   const getScoreColor = (score: number) => {
     if (score >= 85) return "#10b981"
     if (score >= 50) return "#f59e0b"
     return "#ef4444"
+  }
+
+  // Exibir informações de debug se estiver no modo debug
+  const toggleDebugMode = () => {
+    setIsDebugMode(!isDebugMode)
   }
 
   if (isLoading) {
@@ -336,6 +151,10 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     )
+  }
+
+  if (error) {
+    return <ErrorDisplay message={error} onRetry={reload} />
   }
 
   return (
@@ -360,18 +179,36 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
             </div>
           </div>
 
-          <button
-            onClick={onLogout}
-            className="btn btn-secondary"
-            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-          >
-            <LogOut size={16} />
-            Sair
-          </button>
+          <div style={{ display: "flex", gap: "1rem" }}>
+            <Link href="/admin/debug">
+              <button className="btn btn-secondary" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <AlertTriangle size={16} />
+                Debug
+              </button>
+            </Link>
+            <button
+              onClick={onLogout}
+              className="btn btn-secondary"
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <LogOut size={16} />
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="container" style={{ padding: "2rem" }}>
+        {/* Debug Info */}
+        {isDebugMode && (
+          <div className="card" style={{ marginBottom: "2rem", padding: "1rem", background: "#f8fafc" }}>
+            <h3 style={{ fontSize: "1rem", fontWeight: "600", marginBottom: "0.5rem" }}>Informações de Debug</h3>
+            <pre style={{ fontSize: "0.75rem", overflow: "auto", maxHeight: "200px" }}>
+              {JSON.stringify({ users, stats }, null, 2)}
+            </pre>
+          </div>
+        )}
+
         {/* Stats Cards */}
         {stats && (
           <div
@@ -417,7 +254,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <TrendingUp size={24} color="#ef4444" />
               </div>
               <h3 style={{ fontSize: "2rem", fontWeight: "700", color: "var(--dark)", margin: "0 0 0.5rem 0" }}>
-                {Math.round((stats.completedDiagnostics / stats.totalUsers) * 100) || 0}%
+                {stats.totalUsers > 0 ? Math.round((stats.completedDiagnostics / stats.totalUsers) * 100) : 0}%
               </h3>
               <p style={{ color: "var(--warm-gray)", fontSize: "0.9rem" }}>Taxa de Conclusão</p>
             </div>
@@ -472,14 +309,23 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
             </div>
 
-            <button
-              onClick={exportToCSV}
-              className="btn btn-secondary"
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-            >
-              <Download size={16} />
-              Exportar CSV
-            </button>
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <button
+                onClick={toggleDebugMode}
+                className="btn btn-secondary"
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                {isDebugMode ? "Ocultar Debug" : "Mostrar Debug"}
+              </button>
+              <button
+                onClick={exportToCSV}
+                className="btn btn-secondary"
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <Download size={16} />
+                Exportar CSV
+              </button>
+            </div>
           </div>
         </div>
 
@@ -518,12 +364,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
-                  <tr key={user.userId} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  <tr key={user.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                     <td style={{ padding: "1rem" }}>
                       <div>
-                        <div style={{ fontWeight: "500", color: "var(--dark)" }}>{user.userData.name}</div>
+                        <div style={{ fontWeight: "500", color: "var(--dark)" }}>{user.name || "N/A"}</div>
                         <div style={{ fontSize: "0.875rem", color: "var(--warm-gray)" }}>
-                          ID: {user.userId.slice(-8)}
+                          ID: {user.id ? user.id.slice(-8) : "N/A"}
                         </div>
                       </div>
                     </td>
@@ -531,24 +377,22 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       <div style={{ fontSize: "0.875rem" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
                           <Mail size={14} color="var(--warm-gray)" />
-                          <span>{user.userData.email}</span>
+                          <span>{user.email || "N/A"}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                           <Phone size={14} color="var(--warm-gray)" />
-                          <span>{user.userData.whatsapp}</span>
+                          <span>{user.whatsapp || "N/A"}</span>
                         </div>
                       </div>
                     </td>
                     <td style={{ padding: "1rem", textAlign: "center", fontSize: "0.875rem" }}>
-                      {user.userData.location ? (
+                      {isValidObject(user.location) ? (
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                           <MapPin size={14} color="var(--sage)" />
                           <div>
-                            <div style={{ fontWeight: "500", color: "var(--dark)" }}>
-                              {user.userData.location.city || "N/A"}
-                            </div>
+                            <div style={{ fontWeight: "500", color: "var(--dark)" }}>{user.location.city || "N/A"}</div>
                             <div style={{ color: "var(--warm-gray)", fontSize: "0.75rem" }}>
-                              {user.userData.location.state || "N/A"}
+                              {user.location.state || "N/A"}
                             </div>
                           </div>
                         </div>
@@ -620,7 +464,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <td style={{ padding: "1rem", textAlign: "center" }}>
                       <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
                         <button
-                          onClick={() => handleViewUser(user.userId)}
+                          onClick={() => handleViewUser(user.id)}
                           style={{
                             padding: "0.5rem",
                             border: "1px solid var(--sage)",
@@ -637,7 +481,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           <Eye size={14} />
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(user.userId)}
+                          onClick={() => handleDeleteUser(user.id)}
                           style={{
                             padding: "0.5rem",
                             border: "1px solid #ef4444",
@@ -684,9 +528,54 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   )
 }
 
-// Modal para detalhes do usuário
-function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => void }) {
-  const maturityLevel = getMaturityLevel(user.totalScore)
+// Modal para detalhes do usuário com verificações adicionais
+function UserDetailsModal({ user, onClose }: { user: any; onClose: () => void }) {
+  // Verificar se o usuário é válido
+  if (!user || typeof user !== "object") {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0, 0, 0, 0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "1rem",
+        }}
+        onClick={onClose}
+      >
+        <div
+          style={{
+            background: "white",
+            borderRadius: "1rem",
+            padding: "2rem",
+            maxWidth: "500px",
+            width: "100%",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 style={{ color: "#ef4444", marginBottom: "1rem" }}>Erro ao carregar detalhes do usuário</h2>
+          <p>Os dados do usuário são inválidos ou estão corrompidos.</p>
+          <button onClick={onClose} className="btn btn-primary" style={{ marginTop: "1rem" }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Verificações de segurança para os dados
+  const isValidObject = (obj: any): boolean => {
+    return obj !== null && typeof obj === "object"
+  }
+
+  const totalScore = user.totalScore || 0
+  const maturityLevel = getMaturityLevel ? getMaturityLevel(totalScore) : null
 
   const getScoreColor = (score: number) => {
     if (score >= 85) return "#10b981"
@@ -694,15 +583,31 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
     return "#ef4444"
   }
 
-  const categoryScores = checklistData.map((category) => {
-    if (!user.answers) return { title: category.title, score: 0 }
+  // Calcular scores de categoria com verificações de segurança
+  const categoryScores = Array.isArray(checklistData)
+    ? checklistData.map((category) => {
+        if (!category) return { title: "Categoria Desconhecida", score: 0 }
 
-    const totalItems = category.items.length
-    const completedItems = category.items.filter((item) => user.answers![item.id] === true).length
-    const score = Math.round((completedItems / totalItems) * 100)
+        if (!user.answers) return { title: category.title || "Categoria Desconhecida", score: 0 }
 
-    return { title: category.title, score }
-  })
+        try {
+          const totalItems = category.items ? category.items.length : 0
+          if (totalItems === 0) return { title: category.title || "Categoria Desconhecida", score: 0 }
+
+          const completedItems = category.items
+            ? category.items.filter((item) => {
+                return item && item.id && user.answers && user.answers[item.id] === true
+              }).length
+            : 0
+
+          const score = Math.round((completedItems / totalItems) * 100)
+          return { title: category.title || "Categoria Desconhecida", score }
+        } catch (err) {
+          console.error(`Erro ao calcular score para categoria ${category.title}:`, err)
+          return { title: category.title || "Categoria Desconhecida", score: 0 }
+        }
+      })
+    : []
 
   return (
     <div
@@ -737,7 +642,7 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
           <div>
             <h2 style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--dark)", margin: "0 0 0.5rem 0" }}>
-              {user.userData.name}
+              {user.name || "Usuário sem nome"}
             </h2>
             <p style={{ color: "var(--warm-gray)", margin: 0 }}>Detalhes do diagnóstico</p>
           </div>
@@ -764,17 +669,17 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <Mail size={16} color="var(--warm-gray)" />
-                <span>{user.userData.email}</span>
+                <span>{user.email || "Email não disponível"}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <Phone size={16} color="var(--warm-gray)" />
-                <span>{user.userData.whatsapp}</span>
+                <span>{user.whatsapp || "WhatsApp não disponível"}</span>
               </div>
-              {user.userData.location && (
+              {isValidObject(user.location) && (
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <MapPin size={16} color="var(--warm-gray)" />
                   <span>
-                    {user.userData.location.city}, {user.userData.location.state}
+                    {user.location.city || "Cidade não disponível"}, {user.location.state || "Estado não disponível"}
                   </span>
                 </div>
               )}
@@ -808,7 +713,7 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
                     width: "80px",
                     height: "80px",
                     borderRadius: "50%",
-                    background: `conic-gradient(${getScoreColor(user.totalScore)} ${user.totalScore * 3.6}deg, #f1f5f9 0deg)`,
+                    background: `conic-gradient(${getScoreColor(totalScore)} ${totalScore * 3.6}deg, #f1f5f9 0deg)`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -828,12 +733,14 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
                       fontWeight: "700",
                     }}
                   >
-                    {user.totalScore}%
+                    {totalScore}%
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                   <Award size={16} color="var(--gold)" />
-                  <span style={{ fontWeight: "600", color: "var(--dark)" }}>{maturityLevel?.name}</span>
+                  <span style={{ fontWeight: "600", color: "var(--dark)" }}>
+                    {maturityLevel?.name || "Nível não disponível"}
+                  </span>
                 </div>
               </div>
             ) : (
@@ -844,61 +751,31 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
           </div>
         </div>
 
-        {/* Category Scores */}
-        {user.answers && (
-          <div>
-            <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "1rem", color: "var(--dark)" }}>
-              Pontuação por Categoria
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {checklistData.map((category, categoryIndex) => {
-                const categoryScore = categoryScores.find((cat) => cat.title === category.title) || { score: 0 }
-                const categoryAnswers = category.items.map((item) => ({
-                  question: item.question,
-                  answer: user.answers![item.id],
-                  tip: item.tip,
-                }))
-
-                const answeredYes = categoryAnswers.filter((item) => item.answer === true).length
-                const answeredNo = categoryAnswers.filter((item) => item.answer === false).length
-                const notAnswered = categoryAnswers.filter((item) => item.answer === undefined).length
-
-                return (
-                  <CategoryDropdown
-                    key={categoryIndex}
-                    category={{ ...category, score: categoryScore.score }}
-                    answers={categoryAnswers}
-                    stats={{ answeredYes, answeredNo, notAnswered }}
-                  />
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Actions */}
         <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-          <a
-            href={`https://wa.me/55${user.userData.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
-              `Olá ${user.userData.name}! Vi que você fez nosso diagnóstico GMB e obteve ${user.totalScore}% de pontuação. Gostaria de conversar sobre como podemos ajudar a otimizar seu perfil?`,
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <button
-              className="btn"
-              style={{
-                background: "#25D366",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
+          {user.whatsapp && (
+            <a
+              href={`https://wa.me/55${user.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
+                `Olá ${user.name || ""}! Vi que você fez nosso diagnóstico GMB e obteve ${totalScore}% de pontuação. Gostaria de conversar sobre como podemos ajudar a otimizar seu perfil?`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <Phone size={16} />
-              Contatar via WhatsApp
-            </button>
-          </a>
+              <button
+                className="btn"
+                style={{
+                  background: "#25D366",
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <Phone size={16} />
+                Contatar via WhatsApp
+              </button>
+            </a>
+          )}
           <button onClick={onClose} className="btn btn-secondary">
             Fechar
           </button>

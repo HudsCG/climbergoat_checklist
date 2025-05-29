@@ -108,4 +108,34 @@ export class SupabaseAdminService {
     } = await supabase!.auth.getSession()
     return session
   }
+
+  // Método para testar a conexão com o Supabase
+  async testConnection() {
+    try {
+      this.checkSupabaseConnection()
+
+      // Teste simples para verificar se conseguimos fazer uma consulta
+      const { data, error } = await supabase!.from("admin_users").select("count").limit(1)
+
+      if (error) {
+        return {
+          success: false,
+          message: `Erro na conexão: ${error.message}`,
+          error: error,
+        }
+      }
+
+      return {
+        success: true,
+        message: "Conexão com Supabase estabelecida com sucesso",
+        data: data,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: `Erro ao testar conexão: ${error instanceof Error ? error.message : "Erro desconhecido"}`,
+        error: error,
+      }
+    }
+  }
 }

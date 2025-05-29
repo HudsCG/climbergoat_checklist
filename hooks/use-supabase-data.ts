@@ -26,13 +26,59 @@ export function useSupabaseData() {
       setIsLoading(true)
       setError(null)
 
-      const [usersData, answersData] = await Promise.all([userService.getAllUsers(), checklistService.getAllAnswers()])
+      // Verificar se o Supabase está configurado
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        throw new Error("Supabase não configurado. Verifique as variáveis de ambiente.")
+      }
 
-      // Combine users with their answers
+      // Buscar dados com tratamento de erro
+      let usersData: User[] = []
+      let answersData: any[] = []
+
+      try {
+        usersData = await userService.getAllUsers()
+      } catch (err) {
+        console.error("Erro ao buscar usuários:", err)
+        usersData = []
+      }
+
+      try {
+        answersData = await checklistService.getAllAnswers()
+      } catch (err) {
+        console.error("Erro ao buscar respostas:", err)
+        answersData = []
+      }
+
+      // Combinar usuários com suas respostas com verificações de segurança
       const usersWithAnswers: UserWithAnswers[] = usersData.map((user) => {
-        const userAnswers = answersData.find((a) => a.user_id === user.id)
+        // Verificar se o usuário é válido
+        if (!user || !user.id) {
+          console.warn("Usuário inválido encontrado:", user)
+          return {
+            id: "invalid-id",
+            name: "Usuário Inválido",
+            email: "",
+            whatsapp: "",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            answers: null,
+            completedAt: null,
+            totalScore: 0,
+          }
+        }
+
+        const userAnswers = answersData.find((a) => a && a.user_id === user.id)
         const answers = userAnswers?.answers || null
-        const totalScore = answers ? calculateTotalScore(answers, checklistData) : 0
+
+        // Calcular score com verificação de segurança
+        let totalScore = 0
+        if (answers && typeof answers === "object") {
+          try {
+            totalScore = calculateTotalScore(answers, checklistData)
+          } catch (err) {
+            console.error(`Erro ao calcular score para usuário ${user.id}:`, err)
+          }
+        }
 
         return {
           ...user,
@@ -44,7 +90,10 @@ export function useSupabaseData() {
 
       setUsers(usersWithAnswers)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data")
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido ao carregar dados"
+      console.error("Erro em loadData:", errorMessage)
+      setError(errorMessage)
+      setUsers([]) // Garantir que users seja um array vazio em caso de erro
     } finally {
       setIsLoading(false)
     }
@@ -53,49 +102,78 @@ export function useSupabaseData() {
   const deleteUser = async (userId: string) => {
     try {
       await userService.deleteUser(userId)
-      await loadData() // Reload data
+      await loadData() // Recarregar dados
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : "Failed to delete user")
+      throw new Error(err instanceof Error ? err.message : "Falha ao excluir usuário")
     }
   }
 
   const getStats = () => {
-    const totalUsers = users.length
-    const completedUsers = users.filter((u) => u.answers !== null)
-    const completedDiagnostics = completedUsers.length
-    const averageScore =
-      completedUsers.length > 0
-        ? Math.round(completedUsers.reduce((sum, user) => sum + user.totalScore, 0) / completedUsers.length)
-        : 0
+    // Verificações de segurança para evitar erros
+    if (!users || users.length === 0) {
+      return {
+        totalUsers: 0,
+        completedDiagnostics: 0,
+        averageScore: 0,
+        topCategories: [],
+      }
+    }
 
-    // Calculate category averages
-    const categoryScores: Record<string, number[]> = {}
+    try {
+      const totalUsers = users.length
+      const completedUsers = users.filter((u) => u && u.answers !== null)
+      const completedDiagnostics = completedUsers.length
+      const averageScore =
+        completedUsers.length > 0
+          ? Math.round(completedUsers.reduce((sum, user) => sum + (user.totalScore || 0), 0) / completedUsers.length)
+          : 0
 
-    completedUsers.forEach((user) => {
-      if (user.answers) {
-        checklistData.forEach((category) => {
-          const score = calculateCategoryScore(user.answers!, category)
-          if (!categoryScores[category.title]) {
-            categoryScores[category.title] = []
+      // Calcular médias por categoria com verificações de segurança
+      const categoryScores: Record<string, number[]> = {}
+
+      if (completedUsers.length > 0 && Array.isArray(checklistData)) {
+        completedUsers.forEach((user) => {
+          if (user && user.answers) {
+            checklistData.forEach((category) => {
+              if (category && category.title) {
+                try {
+                  const score = calculateCategoryScore(user.answers, category)
+                  if (!categoryScores[category.title]) {
+                    categoryScores[category.title] = []
+                  }
+                  categoryScores[category.title].push(score)
+                } catch (err) {
+                  console.error(`Erro ao calcular score da categoria ${category.title}:`, err)
+                }
+              }
+            })
           }
-          categoryScores[category.title].push(score)
         })
       }
-    })
 
-    const topCategories = Object.entries(categoryScores)
-      .map(([category, scores]) => ({
-        category,
-        averageScore: Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length),
-      }))
-      .sort((a, b) => b.averageScore - a.averageScore)
-      .slice(0, 5)
+      const topCategories = Object.entries(categoryScores)
+        .map(([category, scores]) => ({
+          category,
+          averageScore:
+            scores.length > 0 ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0,
+        }))
+        .sort((a, b) => b.averageScore - a.averageScore)
+        .slice(0, 5)
 
-    return {
-      totalUsers,
-      completedDiagnostics,
-      averageScore,
-      topCategories,
+      return {
+        totalUsers,
+        completedDiagnostics,
+        averageScore,
+        topCategories,
+      }
+    } catch (err) {
+      console.error("Erro ao calcular estatísticas:", err)
+      return {
+        totalUsers: users.length,
+        completedDiagnostics: 0,
+        averageScore: 0,
+        topCategories: [],
+      }
     }
   }
 
