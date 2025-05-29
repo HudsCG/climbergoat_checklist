@@ -751,6 +751,37 @@ function UserDetailsModal({ user, onClose }: { user: any; onClose: () => void })
           </div>
         </div>
 
+        {/* Category Scores */}
+        {user.answers && (
+          <div>
+            <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "1rem", color: "var(--dark)" }}>
+              Respostas Detalhadas do Checklist
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {checklistData.map((category, categoryIndex) => {
+                const categoryAnswers = category.items.map((item) => ({
+                  question: item.question,
+                  answer: user.answers![item.id],
+                  tip: item.tip,
+                }))
+
+                const answeredYes = categoryAnswers.filter((item) => item.answer === true).length
+                const answeredNo = categoryAnswers.filter((item) => item.answer === false).length
+                const notAnswered = categoryAnswers.filter((item) => item.answer === undefined).length
+
+                return (
+                  <CategoryDropdown
+                    key={categoryIndex}
+                    category={category}
+                    answers={categoryAnswers}
+                    stats={{ answeredYes, answeredNo, notAnswered }}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
           {user.whatsapp && (
@@ -781,6 +812,205 @@ function UserDetailsModal({ user, onClose }: { user: any; onClose: () => void })
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Componente para dropdown de categoria com respostas detalhadas
+function CategoryDropdown({
+  category,
+  answers,
+  stats,
+}: {
+  category: any
+  answers: Array<{ question: string; answer: boolean | undefined; tip?: string }>
+  stats: { answeredYes: number; answeredNo: number; notAnswered: number }
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  const getAnswerIcon = (answer: boolean | undefined) => {
+    if (answer === true) return { icon: "✅", color: "#10b981", text: "Sim" }
+    if (answer === false) return { icon: "❌", color: "#ef4444", text: "Não" }
+    return { icon: "⚪", color: "#6b7280", text: "Não respondido" }
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--border-subtle)",
+        borderRadius: "0.5rem",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header do dropdown */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          width: "100%",
+          padding: "1rem",
+          background: isExpanded ? "var(--sage)" : "white",
+          color: isExpanded ? "white" : "var(--dark)",
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          transition: "all 0.2s ease",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flex: 1 }}>
+          <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>{category.title}</span>
+
+          {/* Barra de progresso */}
+          <div style={{ flex: 1, maxWidth: "200px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div
+              style={{
+                flex: 1,
+                height: "6px",
+                background: isExpanded ? "rgba(255,255,255,0.2)" : "#f1f5f9",
+                borderRadius: "3px",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${(stats.answeredYes / (stats.answeredYes + stats.answeredNo + stats.notAnswered)) * 100 || 0}%`,
+                  height: "100%",
+                  background: isExpanded ? "white" : "#10b981",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                minWidth: "35px",
+                color: isExpanded ? "rgba(255,255,255,0.9)" : "var(--sage)",
+              }}
+            >
+              {Math.round((stats.answeredYes / (stats.answeredYes + stats.answeredNo + stats.notAnswered)) * 100 || 0)}%
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.75rem" }}>
+            <span
+              style={{
+                background: isExpanded ? "rgba(255,255,255,0.2)" : "#d1fae5",
+                color: isExpanded ? "white" : "#065f46",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.25rem",
+              }}
+            >
+              ✅ {stats.answeredYes}
+            </span>
+            <span
+              style={{
+                background: isExpanded ? "rgba(255,255,255,0.2)" : "#fef3c7",
+                color: isExpanded ? "white" : "#92400e",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.25rem",
+              }}
+            >
+              ❌ {stats.answeredNo}
+            </span>
+            {stats.notAnswered > 0 && (
+              <span
+                style={{
+                  background: isExpanded ? "rgba(255,255,255,0.2)" : "#f1f5f9",
+                  color: isExpanded ? "white" : "#475569",
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "0.25rem",
+                }}
+              >
+                ⚪ {stats.notAnswered}
+              </span>
+            )}
+          </div>
+        </div>
+        <span
+          style={{
+            fontSize: "1.2rem",
+            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+            marginLeft: "1rem",
+          }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {/* Conteúdo expandível */}
+      {isExpanded && (
+        <div style={{ background: "white", borderTop: "1px solid var(--border-subtle)" }}>
+          {answers.map((item, index) => {
+            const answerInfo = getAnswerIcon(item.answer)
+            return (
+              <div
+                key={index}
+                style={{
+                  padding: "1rem",
+                  borderBottom: index < answers.length - 1 ? "1px solid #f1f5f9" : "none",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "1rem",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.2rem",
+                    marginTop: "0.125rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  {answerInfo.icon}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      margin: "0 0 0.5rem 0",
+                      fontWeight: "500",
+                      color: "var(--dark)",
+                      lineHeight: "1.4",
+                    }}
+                  >
+                    {item.question}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: answerInfo.color,
+                        background: `${answerInfo.color}15`,
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "0.25rem",
+                      }}
+                    >
+                      {answerInfo.text}
+                    </span>
+                    {item.tip && (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--warm-gray)",
+                          fontStyle: "italic",
+                          background: "#f8fafc",
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "0.25rem",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        💡 {item.tip}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
