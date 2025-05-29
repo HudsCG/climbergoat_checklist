@@ -1,9 +1,28 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Verificar se as variáveis existem
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+if (!supabaseUrl) {
+  console.error("❌ NEXT_PUBLIC_SUPABASE_URL não encontrada")
+}
+
+if (!supabaseAnonKey) {
+  console.error("❌ NEXT_PUBLIC_SUPABASE_ANON_KEY não encontrada")
+}
+
+// Criar cliente apenas se as variáveis existirem
+export const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        },
+      })
+    : null
 
 // Types for our database
 export interface User {

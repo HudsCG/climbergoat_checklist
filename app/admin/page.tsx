@@ -18,22 +18,31 @@ export default function AdminPage() {
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState("")
   const [resetMessage, setResetMessage] = useState("")
+  const [initError, setInitError] = useState<string | null>(null)
 
   const router = useRouter()
-  const adminService = new SupabaseAdminService()
 
   useEffect(() => {
+    // Verificar se as variáveis de ambiente estão configuradas
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setInitError("Supabase não configurado. Verifique as variáveis de ambiente.")
+      setIsLoading(false)
+      return
+    }
+
     checkAuth()
   }, [])
 
   const checkAuth = async () => {
     try {
+      const adminService = new SupabaseAdminService()
       const currentUser = await adminService.getCurrentUser()
       if (currentUser) {
         setIsAuthenticated(true)
       }
     } catch (error) {
       console.error("Auth check failed:", error)
+      setError("Erro ao verificar autenticação")
     } finally {
       setIsLoading(false)
     }
@@ -45,6 +54,7 @@ export default function AdminPage() {
     setError("")
 
     try {
+      const adminService = new SupabaseAdminService()
       await adminService.signIn(email, password)
       setIsAuthenticated(true)
     } catch (err) {
@@ -56,6 +66,7 @@ export default function AdminPage() {
 
   const handleLogout = async () => {
     try {
+      const adminService = new SupabaseAdminService()
       await adminService.signOut()
       setIsAuthenticated(false)
       setEmail("")
@@ -72,6 +83,7 @@ export default function AdminPage() {
     setResetMessage("")
 
     try {
+      const adminService = new SupabaseAdminService()
       await adminService.resetPassword(resetEmail)
       setResetMessage("Email de recuperação enviado! Verifique sua caixa de entrada.")
       setShowResetPassword(false)
@@ -87,6 +99,24 @@ export default function AdminPage() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
+  if (initError) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="card" style={{ maxWidth: "400px", textAlign: "center" }}>
+          <h1 style={{ color: "#dc2626", marginBottom: "1rem" }}>Erro de Configuração</h1>
+          <p style={{ color: "#6b7280", marginBottom: "1rem" }}>{initError}</p>
+          <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+            <p>Verifique se as seguintes variáveis estão configuradas:</p>
+            <ul style={{ textAlign: "left", marginTop: "0.5rem" }}>
+              <li>NEXT_PUBLIC_SUPABASE_URL</li>
+              <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+            </ul>
+          </div>
+        </div>
       </div>
     )
   }
