@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle, MapPin, Star, Navigation } from "lucide-react"
+import { CheckCircle, MapPin, Star, Navigation, AlertCircle } from "lucide-react"
 import { saveUserData } from "@/lib/storage"
 import Link from "next/link"
 
@@ -47,6 +47,18 @@ export function LandingPage() {
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationStatus, setLocationStatus] = useState<"none" | "getting" | "success" | "error">("none")
   const [autoLocationAttempted, setAutoLocationAttempted] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  // Verificar se já existe um userId no localStorage ao carregar
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedUserId = localStorage.getItem("user_id")
+      if (storedUserId) {
+        setUserId(storedUserId)
+      }
+    }
+  }, [])
 
   // Função para obter localização por IP (automática)
   const getLocationByIP = async (): Promise<LocationData | null> => {
@@ -346,27 +358,80 @@ export function LandingPage() {
     }
   }
 
+  // Efeito para redirecionar quando o formulário for enviado e o userId estiver definido
+  useEffect(() => {
+    if (formSubmitted && userId) {
+      console.log("Redirecionando para /checklist com userId:", userId)
+
+      // Garantir que o userId está no localStorage antes de redirecionar
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user_id", userId)
+      }
+
+      // Pequeno delay para garantir que o localStorage foi atualizado
+      const redirectTimeout = setTimeout(() => {
+        router.push("/checklist")
+      }, 1500)
+
+      return () => clearTimeout(redirectTimeout)
+    }
+  }, [formSubmitted, userId, router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setSubmitError(null)
 
     try {
+      // Validação básica
+      if (!formData.name.trim() || !formData.email.trim() || !formData.whatsapp.trim()) {
+        throw new Error("Por favor, preencha todos os campos obrigatórios.")
+      }
+
+      // Validação de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email)) {
+        throw new Error("Por favor, insira um email válido.")
+      }
+
+      console.log("Iniciando salvamento dos dados do usuário...")
+
+      // Salvar dados do usuário (com fallback automático)
+      const newUserId = await saveUserData({
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        whatsapp: formData.whatsapp.trim(),
+        location: formData.location
+          ? {
+              city: formData.location.city,
+              state: formData.location.state,
+              country: formData.location.country,
+            }
+          : undefined,
+      })
+
+      console.log("Dados salvos com sucesso, userId:", newUserId)
+
+      // Salvar o ID do usuário no estado e no localStorage
+      setUserId(newUserId)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user_id", newUserId)
+      }
+
       // Tentar enviar email (não bloqueia se falhar)
       try {
         await sendEmailNotification(formData)
+        console.log("Email enviado com sucesso")
       } catch (emailError) {
         console.log("Email falhou, mas continuando:", emailError)
       }
 
-      // Salvar dados localmente (backup)
-      await saveUserData(formData)
-
+      // Marcar como enviado - o redirecionamento acontecerá pelo useEffect
       setFormSubmitted(true)
       window.scrollTo({ top: 0, behavior: "smooth" })
-      setTimeout(() => router.push("/checklist"), 1500)
     } catch (error) {
-      console.error("Error:", error)
-      alert("Erro ao salvar dados. Tente novamente.")
+      console.error("Erro no envio do formulário:", error)
+      setSubmitError(error.message || "Erro ao salvar dados. Tente novamente.")
     } finally {
       setIsSubmitting(false)
     }
@@ -635,6 +700,7 @@ export function LandingPage() {
                   Perfeito! Vamos começar
                 </h2>
                 <p style={{ color: "var(--warm-gray)" }}>Estamos preparando seu diagnóstico...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sage mx-auto mt-4"></div>
               </div>
             ) : (
               <>
@@ -658,6 +724,25 @@ export function LandingPage() {
                 </p>
 
                 <form onSubmit={handleSubmit} style={{ textAlign: "left" }}>
+                  {/* Mostrar erro se houver */}
+                  {submitError && (
+                    <div
+                      style={{
+                        background: "rgba(239, 68, 68, 0.1)",
+                        border: "1px solid #ef4444",
+                        borderRadius: "0.5rem",
+                        padding: "0.75rem",
+                        marginBottom: "1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <AlertCircle size={16} color="#ef4444" />
+                      <span style={{ color: "#ef4444", fontSize: "0.875rem" }}>{submitError}</span>
+                    </div>
+                  )}
+
                   {/* Mostrar localização detectada automaticamente */}
                   {getLocationDisplay()}
 
@@ -707,7 +792,14 @@ export function LandingPage() {
                       fontSize: "clamp(1rem, 2.5vw, 1.125rem)",
                     }}
                   >
-                    {isSubmitting ? "Enviando..." : "Iniciar diagnóstico"}
+                    {isSubmitting ? (
+                      <>
+                        <span className="animate-spin inline-block h-4 w-4 border-t-2 border-b-2 border-white rounded-full mr-2"></span>
+                        Enviando...
+                      </>
+                    ) : (
+                      "Iniciar diagnóstico"
+                    )}
                   </button>
 
                   <p
@@ -770,6 +862,10 @@ export function LandingPage() {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        .animate-spin {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>
