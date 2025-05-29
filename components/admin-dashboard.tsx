@@ -22,6 +22,7 @@ import {
 import { checklistData, getMaturityLevel } from "@/lib/checklist-data"
 import Link from "next/link"
 import { useSupabaseData } from "@/hooks/use-supabase-data"
+import { SupabaseDebugService } from "@/lib/supabase/debug-service"
 
 // Componente de erro para exibir mensagens de erro
 function ErrorDisplay({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -53,6 +54,8 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [showUserDetails, setShowUserDetails] = useState(false)
   const [isDebugMode, setIsDebugMode] = useState(false)
 
+  const debugService = new SupabaseDebugService()
+
   // Função para verificar se o objeto é válido
   const isValidObject = (obj: any): boolean => {
     return obj !== null && typeof obj === "object"
@@ -61,12 +64,25 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleDeleteUser = async (userId: string) => {
     if (confirm("Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.")) {
       try {
-        console.log(`Tentando excluir usuário: ${userId}`)
+        console.log(`🗑️ Tentando excluir usuário: ${userId}`)
+
+        // Primeiro, testar permissões
+        const permissions = await debugService.testPermissions()
+        console.log("🔍 Resultado do teste de permissões:", permissions)
+
+        if (!permissions.canDelete) {
+          throw new Error(`Sem permissão para excluir usuários: ${permissions.error?.message || "Erro desconhecido"}`)
+        }
+
         await deleteUser(userId)
-        console.log(`Usuário ${userId} excluído com sucesso`)
+        console.log(`✅ Usuário ${userId} excluído com sucesso`)
+
+        // Recarregar os dados após a exclusão
+        await reload()
+
         alert("Usuário excluído com sucesso!")
       } catch (error) {
-        console.error("Erro ao excluir usuário:", error)
+        console.error("❌ Erro ao excluir usuário:", error)
         const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
         alert(`Erro ao excluir usuário: ${errorMessage}`)
       }
@@ -146,6 +162,14 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   // Exibir informações de debug se estiver no modo debug
   const toggleDebugMode = () => {
     setIsDebugMode(!isDebugMode)
+  }
+
+  const testPermissions = async () => {
+    const result = await debugService.testPermissions()
+    console.log("🔍 Resultado completo do teste:", result)
+    alert(
+      `Teste de permissões:\nLeitura: ${result.canRead ? "✅" : "❌"}\nEscrita: ${result.canWrite ? "✅" : "❌"}\nExclusão: ${result.canDelete ? "✅" : "❌"}`,
+    )
   }
 
   if (isLoading) {
@@ -315,6 +339,13 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </div>
 
             <div style={{ display: "flex", gap: "1rem" }}>
+              <button
+                onClick={testPermissions}
+                className="btn btn-secondary"
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                🔍 Testar Permissões
+              </button>
               <button
                 onClick={toggleDebugMode}
                 className="btn btn-secondary"
