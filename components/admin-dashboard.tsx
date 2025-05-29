@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   Users,
   CheckCircle,
@@ -17,12 +17,10 @@ import {
   Award,
   Filter,
   MapPin,
-  Database,
-  Send,
 } from "lucide-react"
-import { getAllUsersData, getAdminStats, deleteUserData } from "@/lib/storage"
 import { checklistData, getMaturityLevel } from "@/lib/checklist-data"
 import Link from "next/link"
+import { useSupabaseData } from "@/hooks/use-supabase-data"
 
 interface UserData {
   userId: string
@@ -254,35 +252,18 @@ function CategoryDropdown({
 }
 
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
-  const [users, setUsers] = useState<UserData[]>([])
-  const [stats, setStats] = useState<AdminStats | null>(null)
+  const { users, isLoading, error, stats, deleteUser, reload } = useSupabaseData()
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "completed" | "incomplete">("all")
-  const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [selectedUser, setSelectedUser] = useState<any | null>(null)
   const [showUserDetails, setShowUserDetails] = useState(false)
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
-    try {
-      const [usersData, statsData] = await Promise.all([getAllUsersData(), getAdminStats()])
-      setUsers(usersData)
-      setStats(statsData)
-    } catch (error) {
-      console.error("Error loading admin data:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  // Remove o useEffect e loadData - agora é gerenciado pelo hook
 
   const handleDeleteUser = async (userId: string) => {
     if (confirm("Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.")) {
       try {
-        await deleteUserData(userId)
-        await loadData() // Recarregar dados
+        await deleteUser(userId)
         alert("Usuário excluído com sucesso!")
       } catch (error) {
         console.error("Error deleting user:", error)
@@ -327,42 +308,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     a.download = `diagnosticos-gmb-${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }
-
-  const handleBackup = async () => {
-    try {
-      // Redirecionar para a API de backup (iniciará download)
-      window.open("/api/admin/backup", "_blank")
-    } catch (error) {
-      console.error("Error generating backup:", error)
-      alert("Erro ao gerar backup")
-    }
-  }
-
-  const handleScheduleBackup = async () => {
-    const email = prompt("Digite o email para receber o backup semanal:")
-    if (!email) return
-
-    try {
-      const response = await fetch("/api/admin/schedule-backup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        alert("Backup agendado com sucesso! Verifique seu email.")
-      } else {
-        alert(`Erro: ${data.error || "Falha ao agendar backup"}`)
-      }
-    } catch (error) {
-      console.error("Error scheduling backup:", error)
-      alert("Erro ao agendar backup")
-    }
   }
 
   const filteredUsers = users.filter((user) => {
@@ -534,24 +479,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
             >
               <Download size={16} />
               Exportar CSV
-            </button>
-
-            <button
-              onClick={handleBackup}
-              className="btn btn-secondary"
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-            >
-              <Database size={16} />
-              Backup Manual
-            </button>
-
-            <button
-              onClick={handleScheduleBackup}
-              className="btn btn-secondary"
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-            >
-              <Send size={16} />
-              Backup por Email
             </button>
           </div>
         </div>

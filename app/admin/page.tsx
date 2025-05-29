@@ -1,34 +1,39 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
-import { AdminDashboard } from "@/components/admin-dashboard"
-import Link from "next/link"
 
-type ViewMode = "login" | "forgot-password"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { AdminDashboard } from "@/components/admin-dashboard"
+import { SupabaseAdminService } from "@/lib/supabase/admin-service"
+import Link from "next/link"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>("login")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetMessage, setResetMessage] = useState("")
+
+  const router = useRouter()
+  const adminService = new SupabaseAdminService()
 
   useEffect(() => {
-    checkAuthStatus()
+    checkAuth()
   }, [])
 
-  const checkAuthStatus = async () => {
+  const checkAuth = async () => {
     try {
-      const response = await fetch("/api/admin/verify")
-      const data = await response.json()
-      setIsAuthenticated(data.authenticated)
+      const currentUser = await adminService.getCurrentUser()
+      if (currentUser) {
+        setIsAuthenticated(true)
+      }
     } catch (error) {
-      console.error("Erro ao verificar autenticação:", error)
-      setIsAuthenticated(false)
+      console.error("Auth check failed:", error)
     } finally {
       setIsLoading(false)
     }
@@ -36,75 +41,45 @@ export default function AdminPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsProcessing(true)
-    setError(null)
+    setIsSubmitting(true)
+    setError("")
 
     try {
-      const response = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setIsAuthenticated(true)
-        setEmail("")
-        setPassword("")
-      } else {
-        setError(data.error || "Falha na autenticação")
-      }
-    } catch (error) {
-      console.error("Erro no login:", error)
-      setError("Erro ao fazer login. Tente novamente.")
+      await adminService.signIn(email, password)
+      setIsAuthenticated(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed")
     } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsProcessing(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const response = await fetch("/api/admin/reset-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setSuccess(data.message)
-      } else {
-        setError(data.error || "Erro ao solicitar recuperação")
-      }
-    } catch (error) {
-      console.error("Erro na recuperação:", error)
-      setError("Erro ao solicitar recuperação. Tente novamente.")
-    } finally {
-      setIsProcessing(false)
+      setIsSubmitting(false)
     }
   }
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/admin/logout", { method: "POST" })
+      await adminService.signOut()
       setIsAuthenticated(false)
       setEmail("")
       setPassword("")
-      setError(null)
-      setViewMode("login")
-    } catch (error) {
-      console.error("Erro no logout:", error)
+    } catch (err) {
+      console.error("Logout failed:", err)
+    }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setError("")
+    setResetMessage("")
+
+    try {
+      await adminService.resetPassword(resetEmail)
+      setResetMessage("Email de recuperação enviado! Verifique sua caixa de entrada.")
+      setShowResetPassword(false)
+      setResetEmail("")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send reset email")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -136,13 +111,9 @@ export default function AdminPage() {
                 style={{ height: "3rem", margin: "0 auto 1rem", cursor: "pointer" }}
               />
             </Link>
-            <h1 style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--dark)" }}>
-              {viewMode === "login" && "Painel Administrativo"}
-              {viewMode === "forgot-password" && "Recuperar Senha"}
-            </h1>
+            <h1 style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--dark)" }}>Painel Administrativo</h1>
             <p style={{ color: "var(--warm-gray)", fontSize: "0.9rem" }}>
-              {viewMode === "login" && "Digite suas credenciais para acessar o dashboard"}
-              {viewMode === "forgot-password" && "Digite seu email para receber instruções de recuperação"}
+              {showResetPassword ? "Recuperar senha" : "Entre com suas credenciais"}
             </p>
           </div>
 
@@ -151,36 +122,36 @@ export default function AdminPage() {
               style={{
                 background: "#fef2f2",
                 border: "1px solid #fecaca",
-                color: "#dc2626",
-                padding: "1rem",
                 borderRadius: "0.5rem",
+                padding: "1rem",
                 marginBottom: "1rem",
-                fontSize: "0.9rem",
+                color: "#dc2626",
+                fontSize: "0.875rem",
+                textAlign: "center",
               }}
             >
               {error}
             </div>
           )}
 
-          {success && (
+          {resetMessage && (
             <div
               style={{
                 background: "#f0fdf4",
                 border: "1px solid #bbf7d0",
-                color: "#166534",
-                padding: "1rem",
                 borderRadius: "0.5rem",
+                padding: "1rem",
                 marginBottom: "1rem",
-                fontSize: "0.9rem",
-                whiteSpace: "pre-line",
+                color: "#166534",
+                fontSize: "0.875rem",
+                textAlign: "center",
               }}
             >
-              {success}
+              {resetMessage}
             </div>
           )}
 
-          {/* Formulário de Login */}
-          {viewMode === "login" && (
+          {!showResetPassword ? (
             <form onSubmit={handleLogin}>
               <div style={{ marginBottom: "1.5rem" }}>
                 <label className="form-label">Email</label>
@@ -188,10 +159,9 @@ export default function AdminPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Digite seu email"
+                  placeholder="admin@climbergoat.com"
                   className="form-input"
                   required
-                  disabled={isProcessing}
                 />
               </div>
 
@@ -201,10 +171,9 @@ export default function AdminPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Digite a senha"
+                  placeholder="Digite sua senha"
                   className="form-input"
                   required
-                  disabled={isProcessing}
                 />
               </div>
 
@@ -212,42 +181,39 @@ export default function AdminPage() {
                 type="submit"
                 className="btn btn-primary"
                 style={{ width: "100%", padding: "1rem", marginBottom: "1rem" }}
-                disabled={isProcessing}
+                disabled={isSubmitting}
               >
-                {isProcessing ? "Entrando..." : "Entrar"}
+                {isSubmitting ? "Entrando..." : "Entrar"}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setViewMode("forgot-password")}
-                style={{
-                  width: "100%",
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--warm-gray)",
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                Esqueceu sua senha?
-              </button>
+              <div style={{ textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(true)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--sage)",
+                    fontSize: "0.875rem",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
             </form>
-          )}
-
-          {/* Formulário de Esqueceu Senha */}
-          {viewMode === "forgot-password" && (
-            <form onSubmit={handleForgotPassword}>
+          ) : (
+            <form onSubmit={handleResetPassword}>
               <div style={{ marginBottom: "1.5rem" }}>
-                <label className="form-label">Email</label>
+                <label className="form-label">Email para recuperação</label>
                 <input
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
                   placeholder="Digite seu email"
                   className="form-input"
                   required
-                  disabled={isProcessing}
                 />
               </div>
 
@@ -255,26 +221,31 @@ export default function AdminPage() {
                 type="submit"
                 className="btn btn-primary"
                 style={{ width: "100%", padding: "1rem", marginBottom: "1rem" }}
-                disabled={isProcessing}
+                disabled={isSubmitting}
               >
-                {isProcessing ? "Enviando..." : "Enviar Email"}
+                {isSubmitting ? "Enviando..." : "Enviar email de recuperação"}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setViewMode("login")}
-                style={{
-                  width: "100%",
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--warm-gray)",
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                Voltar ao login
-              </button>
+              <div style={{ textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetPassword(false)
+                    setError("")
+                    setResetMessage("")
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--sage)",
+                    fontSize: "0.875rem",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Voltar ao login
+                </button>
+              </div>
             </form>
           )}
         </div>
