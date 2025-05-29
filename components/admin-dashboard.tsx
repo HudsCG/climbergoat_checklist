@@ -61,11 +61,14 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const handleDeleteUser = async (userId: string) => {
     if (confirm("Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.")) {
       try {
+        console.log(`Tentando excluir usuário: ${userId}`)
         await deleteUser(userId)
+        console.log(`Usuário ${userId} excluído com sucesso`)
         alert("Usuário excluído com sucesso!")
       } catch (error) {
-        console.error("Error deleting user:", error)
-        alert("Erro ao excluir usuário")
+        console.error("Erro ao excluir usuário:", error)
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+        alert(`Erro ao excluir usuário: ${errorMessage}`)
       }
     }
   }
@@ -285,6 +288,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   }}
                 />
                 <input
+                  id="search-users"
                   type="text"
                   placeholder="Buscar por nome, email ou cidade..."
                   value={searchTerm}
@@ -297,6 +301,7 @@ export function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <Filter size={16} color="var(--warm-gray)" />
                 <select
+                  id="filter-status"
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value as any)}
                   className="form-input"

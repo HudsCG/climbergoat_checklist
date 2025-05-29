@@ -59,10 +59,26 @@ export class SupabaseUserService {
   }
 
   async deleteUser(id: string): Promise<void> {
-    const { error } = await supabase.from("users").delete().eq("id", id)
+    try {
+      // Primeiro, excluir todas as respostas do checklist deste usuário
+      const { error: answersError } = await supabase.from("checklist_answers").delete().eq("user_id", id)
 
-    if (error) {
-      throw new Error(`Failed to delete user: ${error.message}`)
+      if (answersError) {
+        console.warn(`Warning: Could not delete checklist answers for user ${id}:`, answersError.message)
+        // Não vamos falhar aqui, pois pode ser que o usuário não tenha respostas
+      }
+
+      // Depois, excluir o usuário
+      const { error: userError } = await supabase.from("users").delete().eq("id", id)
+
+      if (userError) {
+        throw new Error(`Failed to delete user: ${userError.message}`)
+      }
+
+      console.log(`User ${id} deleted successfully`)
+    } catch (error) {
+      console.error(`Error deleting user ${id}:`, error)
+      throw error
     }
   }
 }
