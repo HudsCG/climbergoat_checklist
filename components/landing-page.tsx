@@ -5,8 +5,8 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { CheckCircle, MapPin, Star, Navigation } from "lucide-react"
-import { saveUserData } from "@/lib/storage"
 import Link from "next/link"
+import { SupabaseUserService } from "@/lib/supabase/user-service"
 
 interface FormData {
   name: string
@@ -358,8 +358,9 @@ export function LandingPage() {
         console.log("Email falhou, mas continuando:", emailError)
       }
 
-      // Salvar dados localmente (backup)
-      await saveUserData(formData)
+      // Salvar dados no Supabase
+      const userService = new SupabaseUserService()
+      await userService.createUser(formData)
 
       setFormSubmitted(true)
       window.scrollTo({ top: 0, behavior: "smooth" })

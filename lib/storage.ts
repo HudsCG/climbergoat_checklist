@@ -82,6 +82,11 @@ export const calculateTotalScore = (answers: Record<string, boolean>, categories
   return Math.round((completedItems / totalItems) * 100)
 }
 
+// In a real application, these functions would connect to a backend API or database
+// For this example, we're using localStorage for demonstration purposes
+
+// Adicionar novas funções para o dashboard administrativo
+
 // Get all users data for admin dashboard
 export const getAllUsersData = async (): Promise<
   Array<{
@@ -228,46 +233,11 @@ export const getUserDetailsById = async (
   }
 }
 
-// Delete user data (for admin) - FUNÇÃO CORRIGIDA
+// Delete user data (for admin)
 export const deleteUserData = async (userId: string): Promise<void> => {
-  try {
-    console.log(`Attempting to delete user: ${userId}`)
-
-    // Remover dados do usuário
-    const userDataKey = `user_data_${userId}`
-    const answersKey = `checklist_answers_${userId}`
-    const completionKey = `completion_date_${userId}`
-
-    // Verificar se as chaves existem antes de remover
-    const userDataExists = localStorage.getItem(userDataKey) !== null
-    const answersExists = localStorage.getItem(answersKey) !== null
-    const completionExists = localStorage.getItem(completionKey) !== null
-
-    console.log(`User data exists: ${userDataExists}`)
-    console.log(`Answers exist: ${answersExists}`)
-    console.log(`Completion exists: ${completionExists}`)
-
-    // Remover todas as chaves relacionadas ao usuário
-    if (userDataExists) {
-      localStorage.removeItem(userDataKey)
-      console.log(`Removed: ${userDataKey}`)
-    }
-
-    if (answersExists) {
-      localStorage.removeItem(answersKey)
-      console.log(`Removed: ${answersKey}`)
-    }
-
-    if (completionExists) {
-      localStorage.removeItem(completionKey)
-      console.log(`Removed: ${completionKey}`)
-    }
-
-    console.log(`Successfully deleted user: ${userId}`)
-  } catch (error) {
-    console.error(`Error deleting user ${userId}:`, error)
-    throw error
-  }
+  localStorage.removeItem(`user_data_${userId}`)
+  localStorage.removeItem(`checklist_answers_${userId}`)
+  localStorage.removeItem(`completion_date_${userId}`)
 }
 
 // Get admin statistics
