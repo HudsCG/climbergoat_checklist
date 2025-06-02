@@ -28,7 +28,7 @@ interface UserData {
     email: string
     whatsapp: string
   }
-  answers: Record<string, boolean> | null
+  answers: { answers: Record<string, boolean> } | null
   completedAt: string | null
   totalScore: number
 }
@@ -690,7 +690,9 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
     if (!user.answers) return { title: category.title, score: 0 }
 
     const totalItems = category.items.length
-    const completedItems = category.items.filter((item) => user.answers![item.id] === true).length
+    const completedItems = category.items.filter((item) =>
+      user.answers?.answers ? user.answers.answers[item.id] === true : false,
+    ).length
     const score = Math.round((completedItems / totalItems) * 100)
 
     return { title: category.title, score }
@@ -980,7 +982,7 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
                   const categoryScore = categoryScores.find((cat) => cat.title === category.title) || { score: 0 }
                   const categoryAnswers = category.items.map((item) => ({
                     question: item.question,
-                    answer: user.answers![item.id],
+                    answer: user.answers?.answers ? user.answers.answers[item.id] : undefined,
                     tip: item.tip,
                   }))
 

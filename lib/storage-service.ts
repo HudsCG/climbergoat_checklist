@@ -241,23 +241,53 @@ export class SupabaseStorageRepository implements StorageRepository {
     try {
       console.log("Saving checklist answers:", { userId, answers, totalScore })
 
-      const { data, error } = await supabase
+      // Primeiro, verificar se já existe um registro
+      const { data: existingData, error: selectError } = await supabase
         .from("checklist_answers")
-        .upsert({
-          user_id: userId,
-          answers: answers, // Garantir que é um objeto JSON válido
-          total_score: totalScore,
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
+        .select("id")
+        .eq("user_id", userId)
+        .single()
 
-      if (error) {
-        console.error("Supabase saveChecklistAnswers error:", error)
-        throw error
+      if (selectError && selectError.code !== "PGRST116") {
+        console.error("Error checking existing data:", selectError)
+        throw selectError
       }
 
-      console.log("Checklist answers saved successfully:", data)
+      let result
+      if (existingData) {
+        // UPDATE - registro já existe
+        console.log("Updating existing record for user:", userId)
+        result = await supabase
+          .from("checklist_answers")
+          .update({
+            answers: answers,
+            total_score: totalScore,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId)
+          .select()
+      } else {
+        // INSERT - novo registro
+        console.log("Creating new record for user:", userId)
+        result = await supabase
+          .from("checklist_answers")
+          .insert({
+            user_id: userId,
+            answers: answers,
+            total_score: totalScore,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+      }
+
+      if (result.error) {
+        console.error("Supabase saveChecklistAnswers error:", result.error)
+        throw result.error
+      }
+
+      console.log("Checklist answers saved successfully:", result.data)
     } catch (error) {
       ErrorHandler.logError(error, "saveChecklistAnswers")
       throw new Error("Falha ao salvar respostas")
