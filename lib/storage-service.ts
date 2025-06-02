@@ -205,8 +205,12 @@ export class SupabaseStorageRepository implements StorageRepository {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase saveUserData error:", error)
+        throw error
+      }
 
+      console.log("User data saved successfully:", data)
       return userId
     } catch (error) {
       ErrorHandler.logError(error, "saveUserData")
@@ -220,8 +224,12 @@ export class SupabaseStorageRepository implements StorageRepository {
 
       const { data, error } = await supabase.from("users").select("*").eq("id", id).single()
 
-      if (error && error.code !== "PGRST116") throw error
+      if (error && error.code !== "PGRST116") {
+        console.error("Supabase getUserData error:", error)
+        throw error
+      }
 
+      console.log("User data retrieved:", data)
       return data || null
     } catch (error) {
       ErrorHandler.logError(error, "getUserData")
@@ -231,15 +239,25 @@ export class SupabaseStorageRepository implements StorageRepository {
 
   async saveChecklistAnswers(userId: string, answers: Record<string, boolean>, totalScore: number): Promise<void> {
     try {
-      const { error } = await supabase.from("checklist_answers").upsert({
-        user_id: userId,
-        answers,
-        total_score: totalScore,
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      console.log("Saving checklist answers:", { userId, answers, totalScore })
 
-      if (error) throw error
+      const { data, error } = await supabase
+        .from("checklist_answers")
+        .upsert({
+          user_id: userId,
+          answers: answers, // Garantir que é um objeto JSON válido
+          total_score: totalScore,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+
+      if (error) {
+        console.error("Supabase saveChecklistAnswers error:", error)
+        throw error
+      }
+
+      console.log("Checklist answers saved successfully:", data)
     } catch (error) {
       ErrorHandler.logError(error, "saveChecklistAnswers")
       throw new Error("Falha ao salvar respostas")
@@ -250,10 +268,16 @@ export class SupabaseStorageRepository implements StorageRepository {
     try {
       const id = userId || (await this.getCurrentUserId())
 
+      console.log("Getting checklist answers for user:", id)
+
       const { data, error } = await supabase.from("checklist_answers").select("*").eq("user_id", id).single()
 
-      if (error && error.code !== "PGRST116") throw error
+      if (error && error.code !== "PGRST116") {
+        console.error("Supabase getChecklistAnswers error:", error)
+        throw error
+      }
 
+      console.log("Checklist answers retrieved:", data)
       return data || null
     } catch (error) {
       ErrorHandler.logError(error, "getChecklistAnswers")
@@ -271,19 +295,40 @@ export class SupabaseStorageRepository implements StorageRepository {
     }>
   > {
     try {
+      console.log("Getting all users...")
+
+      // Buscar todos os usuários
       const { data: users, error: usersError } = await supabase
         .from("users")
         .select("*")
         .order("created_at", { ascending: false })
 
-      if (usersError) throw usersError
+      if (usersError) {
+        console.error("Error fetching users:", usersError)
+        throw usersError
+      }
 
+      console.log("Users fetched:", users)
+
+      // Buscar todas as respostas
       const { data: answers, error: answersError } = await supabase.from("checklist_answers").select("*")
 
-      if (answersError) throw answersError
+      if (answersError) {
+        console.error("Error fetching answers:", answersError)
+        throw answersError
+      }
 
+      console.log("Answers fetched:", answers)
+
+      // Combinar dados
       const result = users.map((user) => {
         const userAnswers = answers.find((a) => a.user_id === user.id)
+
+        console.log(`Processing user ${user.id}:`, {
+          user,
+          userAnswers,
+          hasAnswers: !!userAnswers,
+        })
 
         return {
           userId: user.id,
@@ -301,8 +346,10 @@ export class SupabaseStorageRepository implements StorageRepository {
         }
       })
 
+      console.log("Final result:", result)
       return result
     } catch (error) {
+      console.error("Error in getAllUsers:", error)
       ErrorHandler.logError(error, "getAllUsers")
       throw new Error("Falha ao carregar usuários")
     }
@@ -310,15 +357,25 @@ export class SupabaseStorageRepository implements StorageRepository {
 
   async deleteUser(userId: string): Promise<void> {
     try {
+      console.log("Deleting user:", userId)
+
       // Delete checklist answers first (foreign key constraint)
       const { error: answersError } = await supabase.from("checklist_answers").delete().eq("user_id", userId)
 
-      if (answersError) throw answersError
+      if (answersError) {
+        console.error("Error deleting answers:", answersError)
+        throw answersError
+      }
 
       // Delete user
       const { error: userError } = await supabase.from("users").delete().eq("id", userId)
 
-      if (userError) throw userError
+      if (userError) {
+        console.error("Error deleting user:", userError)
+        throw userError
+      }
+
+      console.log("User deleted successfully")
     } catch (error) {
       ErrorHandler.logError(error, "deleteUser")
       throw new Error("Falha ao excluir usuário")

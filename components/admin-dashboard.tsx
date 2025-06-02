@@ -121,7 +121,7 @@ function CategoryDropdown({
             </span>
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.75rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.75rem", marginLeft: "auto" }}>
             <span
               style={{
                 background: isExpanded ? "rgba(255,255,255,0.2)" : "#d1fae5",
@@ -680,6 +680,12 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
     return "#ef4444"
   }
 
+  const getScoreGradient = (score: number) => {
+    if (score >= 85) return "linear-gradient(135deg, #10b981, #059669)"
+    if (score >= 50) return "linear-gradient(135deg, #f59e0b, #d97706)"
+    return "linear-gradient(135deg, #ef4444, #dc2626)"
+  }
+
   const categoryScores = checklistData.map((category) => {
     if (!user.answers) return { title: category.title, score: 0 }
 
@@ -698,194 +704,394 @@ function UserDetailsModal({ user, onClose }: { user: UserData; onClose: () => vo
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.5)",
+        background: "rgba(0, 0, 0, 0.6)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1000,
         padding: "1rem",
+        backdropFilter: "blur(4px)",
       }}
       onClick={onClose}
     >
       <div
         style={{
           background: "white",
-          borderRadius: "1rem",
-          padding: "2rem",
-          maxWidth: "800px",
+          borderRadius: "1.5rem",
+          padding: "0",
+          maxWidth: "900px",
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          border: "1px solid rgba(255, 255, 255, 0.2)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-          <div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--dark)", margin: "0 0 0.5rem 0" }}>
-              {user.userData.name}
-            </h2>
-            <p style={{ color: "var(--warm-gray)", margin: 0 }}>Detalhes do diagnóstico</p>
-          </div>
+        {/* Header com gradiente */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, var(--sage), var(--gold))",
+            padding: "2rem",
+            borderRadius: "1.5rem 1.5rem 0 0",
+            color: "white",
+            position: "relative",
+          }}
+        >
           <button
             onClick={onClose}
             style={{
-              background: "none",
+              position: "absolute",
+              top: "1rem",
+              right: "1rem",
+              background: "rgba(255, 255, 255, 0.2)",
               border: "none",
-              fontSize: "1.5rem",
+              borderRadius: "50%",
+              width: "40px",
+              height: "40px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               cursor: "pointer",
-              color: "var(--warm-gray)",
+              color: "white",
+              fontSize: "1.25rem",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)"
+              e.currentTarget.style.transform = "scale(1.1)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"
+              e.currentTarget.style.transform = "scale(1)"
             }}
           >
             ×
           </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+            <div
+              style={{
+                width: "80px",
+                height: "80px",
+                borderRadius: "50%",
+                background: "rgba(255, 255, 255, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "2rem",
+                fontWeight: "700",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              {user.userData.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h2 style={{ fontSize: "2rem", fontWeight: "700", margin: "0 0 0.5rem 0" }}>{user.userData.name}</h2>
+              <p style={{ margin: 0, opacity: 0.9, fontSize: "1.1rem" }}>Diagnóstico Google Meu Negócio</p>
+            </div>
+          </div>
         </div>
 
-        {/* User Info */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", marginBottom: "2rem" }}>
-          <div>
-            <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "1rem", color: "var(--dark)" }}>
-              Informações de Contato
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Mail size={16} color="var(--warm-gray)" />
-                <span>{user.userData.email}</span>
+        <div style={{ padding: "2rem" }}>
+          {/* Cards de informações principais */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
+            {/* Card de Contato */}
+            <div
+              style={{
+                background: "linear-gradient(135deg, #f8fafc, #f1f5f9)",
+                padding: "1.5rem",
+                borderRadius: "1rem",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Mail size={20} color="white" />
+                </div>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: "600", color: "var(--dark)", margin: 0 }}>Contato</h3>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Phone size={16} color="var(--warm-gray)" />
-                <span>{user.userData.whatsapp}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ fontSize: "0.9rem", color: "var(--warm-gray)" }}>
+                  <strong>Email:</strong>
+                  <br />
+                  {user.userData.email}
+                </div>
+                <div style={{ fontSize: "0.9rem", color: "var(--warm-gray)" }}>
+                  <strong>WhatsApp:</strong>
+                  <br />
+                  {user.userData.whatsapp}
+                </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Calendar size={16} color="var(--warm-gray)" />
-                <span>
-                  {user.completedAt && user.completedAt !== "null" && user.completedAt.trim() !== ""
-                    ? new Date(user.completedAt).toLocaleDateString("pt-BR", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : user.answers
-                      ? "Concluído (data não registrada)"
-                      : "Não concluído"}
-                </span>
+            </div>
+
+            {/* Card de Score */}
+            <div
+              style={{
+                background: user.answers
+                  ? "linear-gradient(135deg, #f0fdf4, #dcfce7)"
+                  : "linear-gradient(135deg, #fefce8, #fef3c7)",
+                padding: "1.5rem",
+                borderRadius: "1rem",
+                border: `1px solid ${user.answers ? "#bbf7d0" : "#fde68a"}`,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.75rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "50%",
+                    background: user.answers
+                      ? "linear-gradient(135deg, #10b981, #059669)"
+                      : "linear-gradient(135deg, #f59e0b, #d97706)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Award size={20} color="white" />
+                </div>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: "600", color: "var(--dark)", margin: 0 }}>Resultado</h3>
+              </div>
+              {user.answers ? (
+                <div>
+                  <div
+                    style={{
+                      width: "80px",
+                      height: "80px",
+                      borderRadius: "50%",
+                      background: `conic-gradient(${getScoreColor(user.totalScore)} ${user.totalScore * 3.6}deg, #f1f5f9 0deg)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 1rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "60px",
+                        height: "60px",
+                        borderRadius: "50%",
+                        background: "white",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1.25rem",
+                        fontWeight: "700",
+                        color: getScoreColor(user.totalScore),
+                      }}
+                    >
+                      {user.totalScore}%
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: "600", color: "var(--dark)", fontSize: "0.9rem" }}>
+                    {maturityLevel?.name}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: "var(--warm-gray)", fontStyle: "italic", fontSize: "0.9rem" }}>
+                  Diagnóstico não concluído
+                </div>
+              )}
+            </div>
+
+            {/* Card de Data */}
+            <div
+              style={{
+                background: "linear-gradient(135deg, #faf5ff, #f3e8ff)",
+                padding: "1.5rem",
+                borderRadius: "1rem",
+                border: "1px solid #e9d5ff",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Calendar size={20} color="white" />
+                </div>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: "600", color: "var(--dark)", margin: 0 }}>Cronologia</h3>
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "var(--warm-gray)" }}>
+                <strong>Conclusão:</strong>
+                <br />
+                {user.completedAt && user.completedAt !== "null" && user.completedAt.trim() !== ""
+                  ? new Date(user.completedAt).toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : user.answers
+                    ? "Concluído (data não registrada)"
+                    : "Não concluído"}
               </div>
             </div>
           </div>
 
+          {/* Seção de Categorias Redesenhada */}
           <div>
-            <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "1rem", color: "var(--dark)" }}>
-              Resultado Geral
-            </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+              <div
+                style={{
+                  width: "4px",
+                  height: "24px",
+                  background: "linear-gradient(135deg, var(--sage), var(--gold))",
+                  borderRadius: "2px",
+                }}
+              />
+              <h3 style={{ fontSize: "1.5rem", fontWeight: "700", color: "var(--dark)", margin: 0 }}>
+                Análise Detalhada por Categoria
+              </h3>
+            </div>
+
             {user.answers ? (
-              <div style={{ textAlign: "center" }}>
+              <div style={{ display: "grid", gap: "1rem" }}>
+                {checklistData.map((category, categoryIndex) => {
+                  const categoryScore = categoryScores.find((cat) => cat.title === category.title) || { score: 0 }
+                  const categoryAnswers = category.items.map((item) => ({
+                    question: item.question,
+                    answer: user.answers![item.id],
+                    tip: item.tip,
+                  }))
+
+                  const answeredYes = categoryAnswers.filter((item) => item.answer === true).length
+                  const answeredNo = categoryAnswers.filter((item) => item.answer === false).length
+                  const notAnswered = categoryAnswers.filter((item) => item.answer === undefined).length
+
+                  return (
+                    <CategoryDropdown
+                      key={categoryIndex}
+                      category={{ ...category, score: categoryScore.score }}
+                      answers={categoryAnswers}
+                      stats={{ answeredYes, answeredNo, notAnswered }}
+                    />
+                  )
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "3rem",
+                  background: "linear-gradient(135deg, #f8fafc, #f1f5f9)",
+                  borderRadius: "1rem",
+                  border: "2px dashed #cbd5e1",
+                }}
+              >
                 <div
                   style={{
                     width: "80px",
                     height: "80px",
                     borderRadius: "50%",
-                    background: `conic-gradient(${getScoreColor(user.totalScore)} ${user.totalScore * 3.6}deg, #f1f5f9 0deg)`,
+                    background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     margin: "0 auto 1rem",
                   }}
                 >
-                  <div
-                    style={{
-                      width: "60px",
-                      height: "60px",
-                      borderRadius: "50%",
-                      background: "white",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "1.25rem",
-                      fontWeight: "700",
-                    }}
-                  >
-                    {user.totalScore}%
-                  </div>
+                  <BarChart3 size={32} color="#64748b" />
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
-                  <Award size={16} color="var(--gold)" />
-                  <span style={{ fontWeight: "600", color: "var(--dark)" }}>{maturityLevel?.name}</span>
-                </div>
+                <p style={{ color: "var(--warm-gray)", fontStyle: "italic", fontSize: "1.1rem", margin: 0 }}>
+                  Este usuário ainda não iniciou o diagnóstico
+                </p>
               </div>
-            ) : (
-              <p style={{ color: "var(--warm-gray)", textAlign: "center", fontStyle: "italic" }}>
-                Diagnóstico não concluído
-              </p>
             )}
           </div>
-        </div>
 
-        {/* Category Scores */}
-        <div>
-          <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "1rem", color: "var(--dark)" }}>
-            Pontuação por Categoria
-          </h3>
-          {user.answers ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {checklistData.map((category, categoryIndex) => {
-                const categoryScore = categoryScores.find((cat) => cat.title === category.title) || { score: 0 }
-                const categoryAnswers = category.items.map((item) => ({
-                  question: item.question,
-                  answer: user.answers![item.id],
-                  tip: item.tip,
-                }))
-
-                const answeredYes = categoryAnswers.filter((item) => item.answer === true).length
-                const answeredNo = categoryAnswers.filter((item) => item.answer === false).length
-                const notAnswered = categoryAnswers.filter((item) => item.answer === undefined).length
-
-                return (
-                  <CategoryDropdown
-                    key={categoryIndex}
-                    category={{ ...category, score: categoryScore.score }}
-                    answers={categoryAnswers}
-                    stats={{ answeredYes, answeredNo, notAnswered }}
-                  />
-                )
-              })}
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "2rem", color: "var(--warm-gray)" }}>
-              <p style={{ fontStyle: "italic" }}>
-                Este usuário ainda não iniciou o diagnóstico ou não possui respostas salvas.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-          <a
-            href={`https://wa.me/55${user.userData.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
-              `Olá ${user.userData.name}! Vi que você fez nosso diagnóstico GMB e obteve ${user.totalScore}% de pontuação. Gostaria de conversar sobre como podemos ajudar a otimizar seu perfil?`,
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          {/* Actions com design melhorado */}
+          <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+            <a
+              href={`https://wa.me/55${user.userData.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
+                `Olá ${user.userData.name}! Vi que você fez nosso diagnóstico GMB e obteve ${user.totalScore}% de pontuação. Gostaria de conversar sobre como podemos ajudar a otimizar seu perfil?`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <button
+                style={{
+                  background: "linear-gradient(135deg, #25D366, #128C7E)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.75rem",
+                  padding: "0.75rem 1.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                  fontWeight: "600",
+                  transition: "all 0.2s ease",
+                  boxShadow: "0 4px 12px rgba(37, 211, 102, 0.3)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)"
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(37, 211, 102, 0.4)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)"
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(37, 211, 102, 0.3)"
+                }}
+              >
+                <Phone size={16} />
+                Contatar via WhatsApp
+              </button>
+            </a>
             <button
-              className="btn"
+              onClick={onClose}
               style={{
-                background: "#25D366",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
+                background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)",
+                color: "var(--dark)",
+                border: "1px solid #cbd5e1",
+                borderRadius: "0.75rem",
+                padding: "0.75rem 1.5rem",
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                fontWeight: "600",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "linear-gradient(135deg, #e2e8f0, #cbd5e1)"
+                e.currentTarget.style.transform = "translateY(-2px)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "linear-gradient(135deg, #f1f5f9, #e2e8f0)"
+                e.currentTarget.style.transform = "translateY(0)"
               }}
             >
-              <Phone size={16} />
-              Contatar via WhatsApp
+              Fechar
             </button>
-          </a>
-          <button onClick={onClose} className="btn btn-secondary">
-            Fechar
-          </button>
+          </div>
         </div>
       </div>
     </div>
