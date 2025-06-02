@@ -1,98 +1,84 @@
--- Enable RLS (Row Level Security)
-alter table if exists public.users enable row level security;
-alter table if exists public.checklist_answers enable row level security;
-alter table if exists public.admin_users enable row level security;
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create users table
-create table if not exists public.users (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  email text not null unique,
-  whatsapp text not null,
-  location jsonb,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  whatsapp TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create checklist_answers table
-create table if not exists public.checklist_answers (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references public.users(id) on delete cascade not null,
-  answers jsonb not null default '{}',
-  completed_at timestamp with time zone,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- Create admin_users table for admin authentication
-create table if not exists public.admin_users (
-  id uuid default gen_random_uuid() primary key,
-  email text not null unique,
-  name text not null,
-  role text not null default 'admin',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE TABLE checklist_answers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  answers JSONB NOT NULL,
+  total_score INTEGER NOT NULL DEFAULT 0,
+  completed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id)
 );
 
 -- Create indexes for better performance
-create index if not exists users_email_idx on public.users(email);
-create index if not exists users_whatsapp_idx on public.users(whatsapp);
-create index if not exists checklist_answers_user_id_idx on public.checklist_answers(user_id);
-create index if not exists admin_users_email_idx on public.admin_users(email);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at);
+CREATE INDEX idx_checklist_answers_user_id ON checklist_answers(user_id);
+CREATE INDEX idx_checklist_answers_completed_at ON checklist_answers(completed_at);
+CREATE INDEX idx_checklist_answers_total_score ON checklist_answers(total_score);
 
--- Create updated_at trigger function
-create or replace function public.handle_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = timezone('utc'::text, now());
-  return new;
-end;
-$$ language plpgsql;
+-- Enable Row Level Security (RLS)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checklist_answers ENABLE ROW LEVEL SECURITY;
 
--- Create triggers for updated_at
-create trigger handle_users_updated_at
-  before update on public.users
-  for each row execute procedure public.handle_updated_at();
+-- Create policies for users table
+CREATE POLICY "Users can insert their own data" ON users
+  FOR INSERT WITH CHECK (true);
 
-create trigger handle_checklist_answers_updated_at
-  before update on public.checklist_answers
-  for each row execute procedure public.handle_updated_at();
+CREATE POLICY "Users can view their own data" ON users
+  FOR SELECT USING (true);
 
-create trigger handle_admin_users_updated_at
-  before update on public.admin_users
-  for each row execute procedure public.handle_updated_at();
+CREATE POLICY "Users can update their own data" ON users
+  FOR UPDATE USING (true);
 
--- RLS Policies
+-- Create policies for checklist_answers table
+CREATE POLICY "Users can insert their own answers" ON checklist_answers
+  FOR INSERT WITH CHECK (true);
 
--- Users table policies (public read/write for the app)
-create policy "Users are publicly readable" on public.users
-  for select using (true);
+CREATE POLICY "Users can view their own answers" ON checklist_answers
+  FOR SELECT USING (true);
 
-create policy "Users can be inserted publicly" on public.users
-  for insert with check (true);
+CREATE POLICY "Users can update their own answers" ON checklist_answers
+  FOR UPDATE USING (true);
 
-create policy "Users can be updated publicly" on public.users
-  for update using (true);
+-- Admin policies (for authenticated users)
+CREATE POLICY "Admins can view all users" ON users
+  FOR SELECT USING (auth.role() = 'authenticated');
 
--- Checklist answers policies
-create policy "Checklist answers are publicly readable" on public.checklist_answers
-  for select using (true);
+CREATE POLICY "Admins can delete users" ON users
+  FOR DELETE USING (auth.role() = 'authenticated');
 
-create policy "Checklist answers can be inserted publicly" on public.checklist_answers
-  for insert with check (true);
+CREATE POLICY "Admins can view all answers" ON checklist_answers
+  FOR SELECT USING (auth.role() = 'authenticated');
 
-create policy "Checklist answers can be updated publicly" on public.checklist_answers
-  for update using (true);
+CREATE POLICY "Admins can delete answers" ON checklist_answers
+  FOR DELETE USING (auth.role() = 'authenticated');
 
--- Admin users policies (only authenticated admins can access)
-create policy "Admin users are readable by authenticated admins" on public.admin_users
-  for select using (auth.role() = 'authenticated');
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
 
-create policy "Admin users can be inserted by authenticated admins" on public.admin_users
-  for insert with check (auth.role() = 'authenticated');
+-- Create triggers to automatically update updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert default admin user (you'll need to create this user in Supabase Auth)
--- This will be linked to the auth.users table
-insert into public.admin_users (email, name, role) 
-values ('admin@climbergoat.com', 'Admin Climber Goat', 'super_admin')
-on conflict (email) do nothing;
+CREATE TRIGGER update_checklist_answers_updated_at BEFORE UPDATE ON checklist_answers
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

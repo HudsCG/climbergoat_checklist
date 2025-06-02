@@ -1,18 +1,12 @@
+import { StorageService } from "./storage-service"
 import type { ChecklistCategory } from "./checklist-data"
 
-// Helper function to get or create a user ID
+// Re-export for backward compatibility
 export const getUserId = async (): Promise<string> => {
-  let userId = localStorage.getItem("user_id")
-
-  if (!userId) {
-    userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-    localStorage.setItem("user_id", userId)
-  }
-
-  return userId
+  // This is now handled internally by the storage service
+  return "handled_by_service"
 }
 
-// Save user data to local storage
 export const saveUserData = async (userData: {
   name: string
   email: string
@@ -25,11 +19,10 @@ export const saveUserData = async (userData: {
     country?: string
   }
 }): Promise<void> => {
-  const userId = await getUserId()
-  localStorage.setItem(`user_data_${userId}`, JSON.stringify(userData))
+  const storageService = StorageService.getInstance()
+  await storageService.saveUserData(userData)
 }
 
-// Get user data from local storage
 export const getUserData = async (): Promise<{
   name: string
   email: string
@@ -42,205 +35,84 @@ export const getUserData = async (): Promise<{
     country?: string
   }
 } | null> => {
-  const userId = await getUserId()
-  const data = localStorage.getItem(`user_data_${userId}`)
-
-  return data ? JSON.parse(data) : null
+  const storageService = StorageService.getInstance()
+  return await storageService.getUserData()
 }
 
-// Save checklist answers to local storage
 export const saveChecklistAnswers = async (answers: Record<string, boolean>): Promise<void> => {
-  const userId = await getUserId()
-  localStorage.setItem(`checklist_answers_${userId}`, JSON.stringify(answers))
+  const storageService = StorageService.getInstance()
+
+  // Calculate total score
+  const { checklistData } = await import("./checklist-data")
+  const totalScore = calculateTotalScore(answers, checklistData)
+
+  // Get current user ID (this will be handled by the service)
+  const userData = await getUserData()
+  if (!userData) throw new Error("User data not found")
+
+  // For now, we'll use a temporary approach to get user ID
+  let userId = localStorage.getItem("anonymous_user_id")
+  if (!userId) {
+    userId = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    localStorage.setItem("anonymous_user_id", userId)
+  }
+
+  await storageService.saveChecklistAnswers(userId, answers, totalScore)
 }
 
-// Get checklist answers from local storage
 export const getChecklistAnswers = async (): Promise<Record<string, boolean> | null> => {
-  const userId = await getUserId()
-  const data = localStorage.getItem(`checklist_answers_${userId}`)
-
-  return data ? JSON.parse(data) : null
+  const storageService = StorageService.getInstance()
+  const result = await storageService.getChecklistAnswers()
+  return result?.answers || null
 }
 
-// Calculate the score for a specific category
 export const calculateCategoryScore = (answers: Record<string, boolean>, category: ChecklistCategory): number => {
   const totalItems = category.items.length
-
   if (totalItems === 0) return 0
 
   const completedItems = category.items.filter((item) => answers[item.id] === true).length
   return Math.round((completedItems / totalItems) * 100)
 }
 
-// Calculate the total score across all categories
 export const calculateTotalScore = (answers: Record<string, boolean>, categories: ChecklistCategory[]): number => {
   const totalItems = categories.reduce((sum, category) => sum + category.items.length, 0)
-
   if (totalItems === 0) return 0
 
   const completedItems = Object.values(answers).filter((value) => value === true).length
   return Math.round((completedItems / totalItems) * 100)
 }
 
-// In a real application, these functions would connect to a backend API or database
-// For this example, we're using localStorage for demonstration purposes
-
-// Adicionar novas funções para o dashboard administrativo
-
-// Get all users data for admin dashboard
-export const getAllUsersData = async (): Promise<
-  Array<{
-    userId: string
-    userData: {
-      name: string
-      email: string
-      whatsapp: string
-      location?: {
-        latitude: number
-        longitude: number
-        city?: string
-        state?: string
-        country?: string
-      }
-    }
-    answers: Record<string, boolean> | null
-    completedAt: string | null
-    totalScore: number
-  }>
-> => {
-  const users: Array<{
-    userId: string
-    userData: {
-      name: string
-      email: string
-      whatsapp: string
-      location?: {
-        latitude: number
-        longitude: number
-        city?: string
-        state?: string
-        country?: string
-      }
-    }
-    answers: Record<string, boolean> | null
-    completedAt: string | null
-    totalScore: number
-  }> = []
-
-  // Iterar por todas as chaves do localStorage
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key && key.startsWith("user_data_")) {
-      const userId = key.replace("user_data_", "")
-      const userDataStr = localStorage.getItem(key)
-
-      if (userDataStr) {
-        try {
-          const userData = JSON.parse(userDataStr)
-
-          // Buscar respostas do checklist para este usuário
-          const answersStr = localStorage.getItem(`checklist_answers_${userId}`)
-          const answers = answersStr ? JSON.parse(answersStr) : null
-
-          // Calcular score se houver respostas
-          let totalScore = 0
-          let completedAt = null
-
-          if (answers) {
-            // Importar checklistData aqui para calcular o score
-            const { checklistData } = await import("./checklist-data")
-            totalScore = calculateTotalScore(answers, checklistData)
-
-            // Tentar obter data de conclusão (se existir)
-            const completionStr = localStorage.getItem(`completion_date_${userId}`)
-            completedAt = completionStr || new Date().toISOString()
-          }
-
-          users.push({
-            userId,
-            userData,
-            answers,
-            completedAt,
-            totalScore,
-          })
-        } catch (error) {
-          console.error(`Error parsing user data for ${userId}:`, error)
-        }
-      }
-    }
-  }
-
-  // Ordenar por data de conclusão (mais recentes primeiro)
-  return users.sort((a, b) => {
-    if (!a.completedAt && !b.completedAt) return 0
-    if (!a.completedAt) return 1
-    if (!b.completedAt) return -1
-    return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  })
+// Admin functions
+export const getAllUsersData = async () => {
+  const storageService = StorageService.getInstance()
+  return await storageService.getAllUsers()
 }
 
-// Save completion date when user finishes checklist
-export const saveCompletionDate = async (): Promise<void> => {
-  const userId = await getUserId()
-  localStorage.setItem(`completion_date_${userId}`, new Date().toISOString())
-}
-
-// Get user details by ID for admin
-export const getUserDetailsById = async (
-  userId: string,
-): Promise<{
-  userData: {
-    name: string
-    email: string
-    whatsapp: string
-    location?: {
-      latitude: number
-      longitude: number
-      city?: string
-      state?: string
-      country?: string
-    }
-  } | null
-  answers: Record<string, boolean> | null
-  completedAt: string | null
-  totalScore: number
-} | null> => {
-  try {
-    const userDataStr = localStorage.getItem(`user_data_${userId}`)
-    const answersStr = localStorage.getItem(`checklist_answers_${userId}`)
-    const completionStr = localStorage.getItem(`completion_date_${userId}`)
-
-    if (!userDataStr) return null
-
-    const userData = JSON.parse(userDataStr)
-    const answers = answersStr ? JSON.parse(answersStr) : null
-
-    let totalScore = 0
-    if (answers) {
-      const { checklistData } = await import("./checklist-data")
-      totalScore = calculateTotalScore(answers, checklistData)
-    }
-
-    return {
-      userData,
-      answers,
-      completedAt: completionStr,
-      totalScore,
-    }
-  } catch (error) {
-    console.error(`Error getting user details for ${userId}:`, error)
-    return null
-  }
-}
-
-// Delete user data (for admin)
 export const deleteUserData = async (userId: string): Promise<void> => {
-  localStorage.removeItem(`user_data_${userId}`)
-  localStorage.removeItem(`checklist_answers_${userId}`)
-  localStorage.removeItem(`completion_date_${userId}`)
+  const storageService = StorageService.getInstance()
+  await storageService.deleteUser(userId)
 }
 
-// Get admin statistics
+export const saveCompletionDate = async (): Promise<void> => {
+  // This is now handled automatically when saving checklist answers
+  return Promise.resolve()
+}
+
+export const getUserDetailsById = async (userId: string) => {
+  const storageService = StorageService.getInstance()
+  const userData = await storageService.getUserData(userId)
+  const answers = await storageService.getChecklistAnswers(userId)
+
+  if (!userData) return null
+
+  return {
+    userData,
+    answers: answers?.answers || null,
+    completedAt: answers?.completed_at || null,
+    totalScore: answers?.total_score || 0,
+  }
+}
+
 export const getAdminStats = async (): Promise<{
   totalUsers: number
   completedDiagnostics: number
@@ -257,16 +129,16 @@ export const getAdminStats = async (): Promise<{
       ? Math.round(completedUsers.reduce((sum, user) => sum + user.totalScore, 0) / completedUsers.length)
       : 0
 
-  // Calcular médias por categoria
+  // Calculate category averages
   const categoryScores: Record<string, number[]> = {}
 
   if (completedUsers.length > 0) {
     const { checklistData } = await import("./checklist-data")
 
     completedUsers.forEach((user) => {
-      if (user.answers) {
+      if (user.answers?.answers) {
         checklistData.forEach((category) => {
-          const score = calculateCategoryScore(user.answers!, category)
+          const score = calculateCategoryScore(user.answers!.answers, category)
           if (!categoryScores[category.title]) {
             categoryScores[category.title] = []
           }

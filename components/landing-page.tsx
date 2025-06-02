@@ -1,434 +1,130 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle, MapPin, Star, Navigation } from "lucide-react"
+import { CheckCircle, MapPin, Star } from "lucide-react"
 import Link from "next/link"
-import { SupabaseUserService } from "@/lib/supabase/user-service"
 
-interface FormData {
-  name: string
-  email: string
-  whatsapp: string
-  location?: {
-    latitude?: number
-    longitude?: number
-    city?: string
-    state?: string
-    country?: string
-    timezone?: string
-    ip?: string
-    source: "gps" | "ip" | "manual"
-  }
-}
+// Clean Code: Imports organizados
+import type { UserData, ValidationResult } from "@/lib/types"
+import { ValidationFactory, sanitizeInput } from "@/lib/validation"
+import { StorageService } from "@/lib/storage-service"
+import { EmailServiceFactory } from "@/lib/email-service"
+import { ErrorHandler } from "@/lib/error-handler"
 
-interface LocationData {
-  latitude?: number
-  longitude?: string
-  city?: string
-  state?: string
-  country?: string
-  timezone?: string
-  ip?: string
-  source: "gps" | "ip" | "manual"
+// Clean Code: Interface específica para o estado do formulário
+interface FormState {
+  data: UserData
+  errors: Record<string, string>
+  isSubmitting: boolean
+  isSubmitted: boolean
 }
 
 export function LandingPage() {
   const router = useRouter()
-  const [formData, setFormData] = useState<FormData>({
-    name: "",
-    email: "",
-    whatsapp: "",
+
+  // Clean Code: Estado inicial bem definido
+  const [formState, setFormState] = useState<FormState>({
+    data: {
+      name: "",
+      email: "",
+      whatsapp: "",
+    },
+    errors: {},
+    isSubmitting: false,
+    isSubmitted: false,
   })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formSubmitted, setFormSubmitted] = useState(false)
-  const [isGettingLocation, setIsGettingLocation] = useState(false)
-  const [locationStatus, setLocationStatus] = useState<"none" | "getting" | "success" | "error">("none")
-  const [autoLocationAttempted, setAutoLocationAttempted] = useState(false)
 
-  // Função para obter localização por IP (automática)
-  const getLocationByIP = async (): Promise<LocationData | null> => {
-    const services = [
-      {
-        name: "ipapi.co",
-        url: "https://ipapi.co/json/",
-        parser: (data: any) => ({
-          city: data.city,
-          state: data.region,
-          country: data.country_name,
-          timezone: data.timezone,
-          ip: data.ip,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          source: "ip" as const,
-        }),
+  // Design Patterns: Strategy Pattern para validação
+  const validateField = useCallback((field: keyof UserData, value: string): ValidationResult => {
+    const validator = ValidationFactory.createValidator(field)
+    return validator.validate(value)
+  }, [])
+
+  // Clean Code: Função com responsabilidade única
+  const updateFormData = useCallback((field: keyof UserData, value: string) => {
+    const sanitizedValue = sanitizeInput(value)
+
+    setFormState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        [field]: sanitizedValue,
       },
-      {
-        name: "ipinfo.io",
-        url: "https://ipinfo.io/json",
-        parser: (data: any) => {
-          const [lat, lng] = data.loc ? data.loc.split(",").map(Number) : [null, null]
-          return {
-            city: data.city,
-            state: data.region,
-            country: data.country,
-            timezone: data.timezone,
-            ip: data.ip,
-            latitude: lat,
-            longitude: lng,
-            source: "ip" as const,
-          }
-        },
+      errors: {
+        ...prev.errors,
+        [field]: "", // Clear error when user types
       },
-      {
-        name: "ip-api.com",
-        url: "http://ip-api.com/json/",
-        parser: (data: any) => ({
-          city: data.city,
-          state: data.regionName,
-          country: data.country,
-          timezone: data.timezone,
-          ip: data.query,
-          latitude: data.lat,
-          longitude: data.lon,
-          source: "ip" as const,
-        }),
-      },
-    ]
+    }))
+  }, [])
 
-    for (const service of services) {
-      try {
-        console.log(`Tentando obter localização via ${service.name}...`)
+  // Clean Code: Validação completa do formulário
+  const validateForm = useCallback((): boolean => {
+    const errors: Record<string, string> = {}
+    let isValid = true
 
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-        const response = await fetch(service.url, {
-          signal: controller.signal,
-          headers: {
-            Accept: "application/json",
-          },
-        })
-
-        clearTimeout(timeoutId)
-
-        if (response.ok) {
-          const data = await response.json()
-          const location = service.parser(data)
-
-          if (location.city || location.state) {
-            console.log(`Localização obtida via ${service.name}:`, location)
-            return location
-          }
-        }
-      } catch (error) {
-        console.log(`Erro com ${service.name}:`, error)
-        continue // Tenta o próximo serviço
+    // Validate all fields
+    Object.entries(formState.data).forEach(([field, value]) => {
+      const result = validateField(field as keyof UserData, value)
+      if (!result.isValid) {
+        errors[field] = result.error || "Campo inválido"
+        isValid = false
       }
-    }
+    })
 
-    console.log("Todos os serviços de IP falharam")
-    return null
-  }
+    setFormState((prev) => ({ ...prev, errors }))
+    return isValid
+  }, [formState.data, validateField])
 
-  // Função para obter localização GPS (com aprovação)
-  const getLocationByGPS = async (): Promise<LocationData | null> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        console.log("Geolocalização não suportada pelo navegador")
-        resolve(null)
+  // Pragmatic Programmer: Error handling robusto
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+
+      if (!validateForm()) {
         return
       }
 
-      const options = {
-        enableHighAccuracy: false, // Mudado para false para ser mais rápido
-        timeout: 15000, // Aumentado para 15 segundos
-        maximumAge: 600000, // 10 minutos - aceita cache mais antigo
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords
-
-          try {
-            // Reverse geocoding com timeout
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), 8000)
-
-            const response = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=pt`,
-              {
-                signal: controller.signal,
-                headers: {
-                  Accept: "application/json",
-                },
-              },
-            )
-
-            clearTimeout(timeoutId)
-
-            if (response.ok) {
-              const data = await response.json()
-              resolve({
-                latitude,
-                longitude,
-                city: data.city || data.locality,
-                state: data.principalSubdivision,
-                country: data.countryName,
-                source: "gps",
-              })
-            } else {
-              // Retorna só as coordenadas se reverse geocoding falhar
-              resolve({ latitude, longitude, source: "gps" })
-            }
-          } catch (error) {
-            console.log("Reverse geocoding falhou, usando apenas coordenadas:", error)
-            // Ainda retorna as coordenadas mesmo se reverse geocoding falhar
-            resolve({ latitude, longitude, source: "gps" })
-          }
-        },
-        (error) => {
-          console.log("Erro na geolocalização:", error.message)
-
-          // Log mais detalhado do erro
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              console.log("Usuário negou a solicitação de geolocalização")
-              break
-            case error.POSITION_UNAVAILABLE:
-              console.log("Informações de localização não disponíveis")
-              break
-            case error.TIMEOUT:
-              console.log("Timeout na solicitação de geolocalização")
-              break
-            default:
-              console.log("Erro desconhecido na geolocalização")
-              break
-          }
-
-          resolve(null)
-        },
-        options,
-      )
-    })
-  }
-
-  // Tentar obter localização automaticamente quando a página carrega
-  useEffect(() => {
-    const attemptAutoLocation = async () => {
-      if (autoLocationAttempted) return
-
-      setAutoLocationAttempted(true)
-      setLocationStatus("getting")
+      setFormState((prev) => ({ ...prev, isSubmitting: true }))
 
       try {
-        console.log("Iniciando detecção automática de localização...")
+        const storageService = StorageService.getInstance()
+        const emailService = EmailServiceFactory.create()
 
-        // Primeiro tenta por IP (automático)
-        const ipLocation = await getLocationByIP()
+        // Pragmatic Programmer: Fail fast - save locally first
+        await storageService.saveUserData(formState.data)
 
-        if (ipLocation) {
-          console.log("Localização por IP obtida:", ipLocation)
-          setFormData((prev) => ({ ...prev, location: ipLocation }))
-          setLocationStatus("success")
-          return
+        // Email sending is non-blocking
+        try {
+          await emailService.sendNotification(formState.data)
+        } catch (emailError) {
+          // Log but don't block the flow
+          ErrorHandler.logError(emailError, "Email notification failed")
         }
 
-        console.log("Localização por IP falhou, tentando GPS silencioso...")
+        setFormState((prev) => ({ ...prev, isSubmitted: true }))
 
-        // Se falhar, tenta GPS silenciosamente apenas se já autorizado
-        if (navigator.permissions) {
-          try {
-            const permission = await navigator.permissions.query({ name: "geolocation" })
-
-            if (permission.state === "granted") {
-              console.log("Permissão GPS já concedida, obtendo localização...")
-              const gpsLocation = await getLocationByGPS()
-              if (gpsLocation) {
-                console.log("Localização GPS obtida:", gpsLocation)
-                setFormData((prev) => ({ ...prev, location: gpsLocation }))
-                setLocationStatus("success")
-                return
-              }
-            } else {
-              console.log("Permissão GPS não concedida:", permission.state)
-            }
-          } catch (permissionError) {
-            console.log("Erro ao verificar permissões:", permissionError)
-          }
-        }
-
-        console.log("Nenhuma localização automática disponível")
-        setLocationStatus("none")
+        // Smooth transition
+        window.scrollTo({ top: 0, behavior: "smooth" })
+        setTimeout(() => router.push("/checklist"), 1500)
       } catch (error) {
-        console.error("Erro na localização automática:", error)
-        setLocationStatus("none")
+        const errorMessage = ErrorHandler.handle(error)
+        setFormState((prev) => ({
+          ...prev,
+          errors: { submit: errorMessage },
+        }))
+      } finally {
+        setFormState((prev) => ({ ...prev, isSubmitting: false }))
       }
-    }
+    },
+    [formState.data, validateForm, router],
+  )
 
-    // Delay pequeno para não impactar o carregamento da página
-    const timeoutId = setTimeout(attemptAutoLocation, 1000)
-
-    return () => clearTimeout(timeoutId)
-  }, [autoLocationAttempted])
-
-  // Handler para capturar localização GPS manualmente
-  const handleGetGPSLocation = async () => {
-    setIsGettingLocation(true)
-    setLocationStatus("getting")
-
-    try {
-      console.log("Solicitando localização GPS manualmente...")
-      const gpsLocation = await getLocationByGPS()
-
-      if (gpsLocation) {
-        console.log("Localização GPS manual obtida:", gpsLocation)
-        setFormData((prev) => ({ ...prev, location: gpsLocation }))
-        setLocationStatus("success")
-      } else {
-        console.log("Falha ao obter localização GPS manual")
-        setLocationStatus("error")
-      }
-    } catch (error) {
-      console.error("Erro ao capturar localização GPS manual:", error)
-      setLocationStatus("error")
-    } finally {
-      setIsGettingLocation(false)
-    }
-  }
-
-  // Função para enviar email via EmailJS
-  const sendEmailNotification = async (data: FormData) => {
-    try {
-      // Preparar dados para o EmailJS
-      const emailData = {
-        to_email: "contatoclimbergoat@gmail.com",
-        from_name: data.name,
-        from_email: data.email,
-        whatsapp: data.whatsapp,
-        location: data.location
-          ? `${data.location.city || ""}, ${data.location.state || ""} (${data.location.source})`
-          : "Não detectada",
-        coordinates:
-          data.location?.latitude && data.location?.longitude
-            ? `${data.location.latitude}, ${data.location.longitude}`
-            : "Não disponível",
-        timestamp: new Date().toLocaleString("pt-BR"),
-        subject: `Novo Lead - ${data.name}`,
-      }
-
-      // Enviar via fetch para EmailJS
-      const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          service_id: "service_g50ko5k", // Sua Service ID
-          template_id: "template_vhdyssy", // Sua Template ID
-          user_id: "Qofon-InGdFR7UFoe", // Sua User ID
-          template_params: emailData,
-        }),
-      })
-
-      if (response.ok) {
-        console.log("Email enviado com sucesso via EmailJS!")
-        return true
-      } else {
-        console.log("Erro no envio via EmailJS")
-        return false
-      }
-    } catch (error) {
-      console.error("Erro no EmailJS:", error)
-      return false
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    try {
-      // Tentar enviar email (não bloqueia se falhar)
-      try {
-        await sendEmailNotification(formData)
-      } catch (emailError) {
-        console.log("Email falhou, mas continuando:", emailError)
-      }
-
-      // Salvar dados no Supabase
-      const userService = new SupabaseUserService()
-      await userService.createUser(formData)
-
-      setFormSubmitted(true)
-      window.scrollTo({ top: 0, behavior: "smooth" })
-      setTimeout(() => router.push("/checklist"), 1500)
-    } catch (error) {
-      console.error("Error:", error)
-      alert("Erro ao salvar dados. Tente novamente.")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const scrollToForm = () => {
+  // Clean Code: Função utilitária
+  const scrollToForm = useCallback(() => {
     document.getElementById("diagnostico")?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  const getLocationDisplay = () => {
-    if (!formData.location) return null
-
-    const { city, state, source } = formData.location
-    const locationText = city && state ? `${city}, ${state}` : city || state || "Localização detectada"
-
-    const sourceIcon = source === "gps" ? "📍" : source === "ip" ? "🌐" : "📍"
-    const sourceText = source === "gps" ? "GPS" : source === "ip" ? "Automática" : "Manual"
-
-    return (
-      <div
-        style={{
-          background: "rgba(109, 142, 117, 0.1)",
-          border: "1px solid var(--sage)",
-          borderRadius: "0.5rem",
-          padding: "0.75rem",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-        }}
-      >
-        <span style={{ fontSize: "1.2rem" }}>{sourceIcon}</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: "500", color: "var(--dark)", fontSize: "0.9rem" }}>{locationText}</div>
-          <div style={{ fontSize: "0.75rem", color: "var(--sage)" }}>Detectado via {sourceText}</div>
-        </div>
-        {source === "ip" && (
-          <button
-            type="button"
-            onClick={handleGetGPSLocation}
-            disabled={isGettingLocation}
-            style={{
-              background: "var(--sage)",
-              color: "white",
-              border: "none",
-              borderRadius: "0.25rem",
-              padding: "0.25rem 0.5rem",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            <Navigation size={12} />
-            Melhorar
-          </button>
-        )}
-      </div>
-    )
-  }
+  }, [])
 
   return (
     <div style={{ background: "var(--cream)", minHeight: "100vh" }}>
@@ -623,7 +319,7 @@ export function LandingPage() {
       <section id="diagnostico" className="section">
         <div className="container" style={{ maxWidth: "500px" }}>
           <div className="card mobile-cta" style={{ textAlign: "center", margin: "0 1rem" }}>
-            {formSubmitted ? (
+            {formState.isSubmitted ? (
               <div>
                 <CheckCircle size={48} color="var(--sage)" style={{ margin: "0 auto 1.5rem" }} />
                 <h2
@@ -659,19 +355,41 @@ export function LandingPage() {
                 </p>
 
                 <form onSubmit={handleSubmit} style={{ textAlign: "left" }}>
-                  {/* Mostrar localização detectada automaticamente */}
-                  {getLocationDisplay()}
+                  {/* Error message */}
+                  {formState.errors.submit && (
+                    <div
+                      style={{
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        borderRadius: "0.5rem",
+                        padding: "1rem",
+                        marginBottom: "1rem",
+                        color: "#dc2626",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      {formState.errors.submit}
+                    </div>
+                  )}
 
                   <div className="mb-3">
                     <label className="form-label">Nome completo</label>
                     <input
                       type="text"
                       required
-                      value={formData.name}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                      value={formState.data.name}
+                      onChange={(e) => updateFormData("name", e.target.value)}
                       placeholder="Seu nome completo"
                       className="form-input"
+                      style={{
+                        borderColor: formState.errors.name ? "#ef4444" : undefined,
+                      }}
                     />
+                    {formState.errors.name && (
+                      <p style={{ color: "#ef4444", fontSize: "0.875rem", marginTop: "0.25rem" }}>
+                        {formState.errors.name}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mb-3">
@@ -679,11 +397,19 @@ export function LandingPage() {
                     <input
                       type="email"
                       required
-                      value={formData.email}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                      value={formState.data.email}
+                      onChange={(e) => updateFormData("email", e.target.value)}
                       placeholder="seu@email.com"
                       className="form-input"
+                      style={{
+                        borderColor: formState.errors.email ? "#ef4444" : undefined,
+                      }}
                     />
+                    {formState.errors.email && (
+                      <p style={{ color: "#ef4444", fontSize: "0.875rem", marginTop: "0.25rem" }}>
+                        {formState.errors.email}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mb-4">
@@ -691,24 +417,33 @@ export function LandingPage() {
                     <input
                       type="tel"
                       required
-                      value={formData.whatsapp}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, whatsapp: e.target.value }))}
+                      value={formState.data.whatsapp}
+                      onChange={(e) => updateFormData("whatsapp", e.target.value)}
                       placeholder="(00) 00000-0000"
                       className="form-input"
+                      style={{
+                        borderColor: formState.errors.whatsapp ? "#ef4444" : undefined,
+                      }}
                     />
+                    {formState.errors.whatsapp && (
+                      <p style={{ color: "#ef4444", fontSize: "0.875rem", marginTop: "0.25rem" }}>
+                        {formState.errors.whatsapp}
+                      </p>
+                    )}
                   </div>
 
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={isSubmitting}
+                    disabled={formState.isSubmitting}
                     style={{
                       width: "100%",
                       padding: "1rem",
                       fontSize: "clamp(1rem, 2.5vw, 1.125rem)",
+                      opacity: formState.isSubmitting ? 0.7 : 1,
                     }}
                   >
-                    {isSubmitting ? "Enviando..." : "Iniciar diagnóstico"}
+                    {formState.isSubmitting ? "Enviando..." : "Iniciar diagnóstico"}
                   </button>
 
                   <p
@@ -766,13 +501,6 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
-
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   )
 }
