@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [error, setError] = useState("")
   const [resetEmailSent, setResetEmailSent] = useState(false)
   const [showResetForm, setShowResetForm] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -27,6 +28,21 @@ export default function AdminPage() {
       setIsLoading(false)
     }
     checkAuth()
+  }, [])
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    setIsOnline(navigator.onLine)
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
+    return () => {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
+    }
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -112,6 +128,22 @@ export default function AdminPage() {
               />
             </Link>
             <h1 style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--dark)" }}>Painel Administrativo</h1>
+            {!isOnline && (
+              <div
+                style={{
+                  background: "#fef3c7",
+                  border: "1px solid #f59e0b",
+                  borderRadius: "0.5rem",
+                  padding: "1rem",
+                  marginBottom: "1rem",
+                  color: "#92400e",
+                  fontSize: "0.875rem",
+                  textAlign: "center",
+                }}
+              >
+                ⚠️ Você está offline. Conecte-se à internet para fazer login.
+              </div>
+            )}
             <p style={{ color: "var(--warm-gray)", fontSize: "0.9rem" }}>
               {showResetForm ? "Recuperar senha" : "Faça login para acessar o dashboard"}
             </p>
@@ -214,9 +246,9 @@ export default function AdminPage() {
                 type="submit"
                 className="btn btn-primary"
                 style={{ width: "100%", padding: "1rem" }}
-                disabled={isSigningIn}
+                disabled={isSigningIn || !isOnline}
               >
-                {isSigningIn ? "Entrando..." : "Entrar"}
+                {!isOnline ? "Offline" : isSigningIn ? "Entrando..." : "Entrar"}
               </button>
 
               <div style={{ textAlign: "center", marginTop: "1rem" }}>
