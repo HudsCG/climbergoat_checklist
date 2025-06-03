@@ -19,20 +19,6 @@ export class EmailJSService implements EmailService {
         throw new AppError("Dados incompletos para envio de email", "INVALID_DATA")
       }
 
-      // TEMPORARIAMENTE DESABILITADO - EmailJS
-      console.log("📧 Email temporariamente desabilitado. Dados que seriam enviados:", {
-        to_email: "contatoclimbergoat@gmail.com",
-        from_name: userData.name,
-        from_email: userData.email,
-        whatsapp: userData.whatsapp,
-        timestamp: new Date().toLocaleString("pt-BR"),
-        subject: `Novo Lead - ${userData.name}`,
-      })
-
-      // Simular sucesso sem enviar email
-      return true
-
-      /* CÓDIGO ORIGINAL COMENTADO:
       const emailData = {
         to_email: "contatoclimbergoat@gmail.com",
         from_name: userData.name,
@@ -67,7 +53,6 @@ export class EmailJSService implements EmailService {
       }
 
       return true
-      */
     } catch (error) {
       ErrorHandler.logError(error, "EmailJSService.sendNotification")
 
